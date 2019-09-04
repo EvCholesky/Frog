@@ -9,32 +9,38 @@ typedef s16 FrShaderHandle; // tag = shhand
 
 enum { SHHAND_Nil = -1 };
 
-struct FrVec2
+#ifdef __cplusplus
+#define FROG_CALL extern "C"
+#else
+#define FROG_CALL
+#endif
+
+typedef struct FrVec2_tag
 {
 	f32 m_x;
 	f32 m_y;
-};
+} FrVec2;
 
-struct FrVec3
+typedef struct FrVec3_tag
 {
 	f32 m_x;
 	f32 m_y;
 	f32 m_z;
-};
+} FrVec3;
 
-struct FrVec4
+typedef struct FrVec4_tag
 {
 	f32 m_x;
 	f32 m_y;
 	f32 m_z;
 	f32 m_w;
-};
+} FrVec4;
 
-struct FrRect
+typedef struct FrRect_tag
 {
 	FrVec2		m_posMin;
 	FrVec2		m_posMax;
-};
+} FrRect;
 
 typedef FrVec4 FrColorVec;
 
@@ -48,7 +54,7 @@ inline FrRect Frog_RectCreate(f32 xMin, f32 yMin, f32 xMax, f32 yMax)
 		return rect;
 	}
 
-inline FrRect Frog_RectCreate(FrVec2 posCenter, f32 dX, f32 dY)	
+inline FrRect Frog_RectFromCenter(FrVec2 posCenter, f32 dX, f32 dY)	
 	{ 
 		FrRect rect; 
 		f32 dXHalf = dX * 0.5f;
@@ -58,7 +64,7 @@ inline FrRect Frog_RectCreate(FrVec2 posCenter, f32 dX, f32 dY)
 		return rect;
 	}
 
-inline FrRect Frog_RectCreate(FrVec2 posMin, FrVec2 posMax)	
+inline FrRect Frog_RectFromExtents(FrVec2 posMin, FrVec2 posMax)	
 	{ 
 		FrRect rect = {posMin, posMax};  
 		return rect;
@@ -71,92 +77,28 @@ inline FrVec2 Frog_PosCenter(const FrRect * pRect)
 		return Frog_Vec2Create(pRect->m_posMin.m_x + dXHalf, pRect->m_posMin.m_y + dYHalf);
 	}
 
-struct FrShader // tag = shad
+typedef struct FrShader_tag // tag = shad
 {
 	FrDrawInt	m_driProgram;
 	FrDrawInt	m_driVertexShader;
 	FrDrawInt	m_driFragmentShader;
-};
+} FrShader;
 
-enum CORESHK // core shader kind
+typedef enum CORESHK_tag // core shader kind
 {
 	CORESHK_Sprite,
 	CORESHK_Environment,	// like sprite, but with "perspective" distortion
 	CORESHK_Max,
-};
+} CORESHK;
 
-enum CORETEXK // core texture kind
+typedef struct FrShaderManager_tag // tag = shman
 {
-	CORETEXK_Test,
-	CORETEXK_Max
-};
-
-enum COREATLAS // core texture atlas
-{
-	COREATLAS_Tiles,
-	COREATLAS_Max,
-};
-
-struct FrShaderManager // tag = shman
-{
-		FrShaderManager()
-		{
-			for (int iShad = 0; iShad < FR_DIM(m_aShad); ++iShad)
-			{
-				FrShader * pShad = &m_aShad[iShad];
-				pShad->m_driProgram = 0;
-				pShad->m_driVertexShader = 0;
-				pShad->m_driFragmentShader = 0;
-			}
-
-			for (int iShhand = 0; iShhand < FR_DIM(m_mpCoreshkShhand); ++iShhand)
-			{
-				m_mpCoreshkShhand[iShhand] = SHHAND_Nil;
-			}
-		}
-
 	FrShader		m_aShad[16];
 	FrShaderHandle	m_mpCoreshkShhand[CORESHK_Max];
-};
+} FrShaderManager;
 
+void Frog_InitShman(FrShaderManager * pShman);
 
-/*
-class FrColor // tag = col
-{
-public:
-					FrColor()
-					:m_rgba(kBlack)
-						{ ; }
-
-					FrColor(u32 rgba)
-					:m_rgba(rgba)
-						{ ; }
-
-					FrColor(u8 r, u8 g, u8 b, u8 a = 255)
-					:m_r(r)
-					,m_g(g)
-					,m_b(b)
-					,m_a(a)
-						{ ; }
-		CColorVec	Colvec() const
-						{ 
-							static const CScalar r = 1.0f / 255.0f;  
-							return CColorVec((F32)m_r, (F32)m_g, (F32)m_b, (F32)m_a) * r; 
-						}
-
-	union
-	{
-		u32 m_rgba;
-		struct 
-		{
-			u8 m_r;
-			u8 m_g;
-			u8 m_b;
-			u8 m_a;
-		};
-	};
-};
-*/
 enum { kFrBlack 	= (s32)0xFF000000 }; // funky casting to deal with clang error "doesn't fit in signed int"
 enum { kFrWhite 	= (s32)0xFFFFFFFF };
 enum { kFrRed	 	= (s32)0xFF1010FF };
@@ -166,7 +108,7 @@ enum { kFrYellow	= (s32)0xFF10FFFF };
 enum { kFrMagenta	= (s32)0xFFFF10FF };
 enum { kFrCyan 		= (s32)0xFFFFFF10 };
 
-union FrColor
+typedef union FrColor_tag
 {
 	u32 m_rgba;
 	struct 
@@ -176,19 +118,19 @@ union FrColor
 		u8 m_b;
 		u8 m_a;
 	};
-};
+} FrColor;
 
 inline FrColor Frog_ColCreate(u32 rgba)					{ FrColor col; col.m_rgba = rgba;	return col;}
-inline FrColor Frog_ColCreate(u8 r, u8 g, u8 b)			{ FrColor col; col.m_r = r; col.m_g = g; col.m_b = b; col.m_a = 255; return col; }
-inline FrColor Frog_ColCreate(u8 r, u8 g, u8 b, u8 a)	{ FrColor col; col.m_r = r; col.m_g = g; col.m_b = b; col.m_a = a; return col; }
-inline FrColorVec Frog_ColvecCreate(FrColor col)	
+inline FrColor Frog_ColFromRGB(u8 r, u8 g, u8 b)		{ FrColor col; col.m_r = r; col.m_g = g; col.m_b = b; col.m_a = 255; return col; }
+inline FrColor Frog_ColFromRGBA(u8 r, u8 g, u8 b, u8 a)	{ FrColor col; col.m_r = r; col.m_g = g; col.m_b = b; col.m_a = a; return col; }
+inline FrColorVec Frog_ColvecCreate(FrColor col)
 {
 	static const f32 s_rCol = 1.0f / 255.0f;
-	FrColorVec colvec = {f32(col.m_r) * s_rCol, f32(col.m_g) * s_rCol, f32(col.m_b) * s_rCol, f32(col.m_a) * s_rCol};
+	FrColorVec colvec = {(f32)col.m_r * s_rCol, (f32)col.m_g * s_rCol, (f32)col.m_b * s_rCol, (f32)col.m_a * s_rCol};
 	return colvec;
 }
 
-enum ALIGNK
+typedef enum ALIGNK_tag
 {
 	ALIGNK_Nil,
 	ALIGNK_Center,
@@ -198,26 +140,26 @@ enum ALIGNK
 	ALIGNK_Bottom	= ALIGNK_SideMin,
 	ALIGNK_Right	= ALIGNK_SideMax,
 	ALIGNK_Top		= ALIGNK_SideMax,
-};
+} ALIGNK;
 
-enum FONTK
+typedef enum FONTK_tag
 {
 	FONTK_Regular,
 	FONTK_Bold,
 
 	FONTK_Max,
-};
+} FONTK;
 
-enum FONTSHK
+typedef enum FONTSHK_tag
 {
 	FONTSHK_Basic,
 
 	FONTSHK_Max,
-};
+} FONTSHK;
 
 
 
-struct FrFontData // tag = fontd
+typedef struct FrFontData_tag // tag = fontd
 {
 	FrColor			m_colMain;
 	FrColor			m_colShadow;
@@ -231,189 +173,25 @@ struct FrFontData // tag = fontd
 	bool			m_fUseWordWrap;
 
 	FrVec2			m_posCursor;
-};
+} FrFontData;
 
-struct FrDrawState // tag = dras
+typedef struct FrDrawState_tag // tag = dras
 {
 	FrFontData		m_fontd;
-};
-
-
-#define NEW_DRAW_STATE 1
-#if NEW_DRAW_STATE 
-
-#else //!NEW_DRAW_STATE
-enum DRASK // draw state kind
-{
-	DRASK_Nil,
-	DRASK_Min,
-
-	/*
-	DRASK_RectMin,
-		DRASK_RectScissor		= DRASK_RectMin,
-	DRASK_RectMax,
-
-	DRASK_VecMin,
-		DRASK_PosSortOriginWs	= DRASK_VecMin,		// this is the origin for tile "perspective" and sorting
-		DRASK_VecScale,
-		DRASK_PosCursor,
-	DRASK_VecMax,
-	*/
-
-	DRASK_ColMin,
-		DRASK_ColFontMain		= DRASK_ColMin,
-		DRASK_ColFontShadow,
-	DRASK_ColMax,
-
-	DRASK_GMin,
-		DRASK_GCharSize			= DRASK_GMin,
-		DRASK_ROpacity,
-	DRASK_GMax,
-
-	DRASK_NMin,
-		DRASK_IFont				= DRASK_NMin,
-		DRASK_NAlignkX,
-		DRASK_NAlignkY,
-	DRASK_NMax,
-
-
-	DRASK_FMin,
-		DRASK_FFixedWidthFont	= DRASK_FMin,
-		DRASK_FWordWrap,
-		DRASK_FUseScissor,
-		DRASK_FDrawSolid,
-	DRASK_FMax,
-	DRASK_Max
-};
-
-class FrDrawState // tag = dras
-{
-public:
-			FrDrawState()
-				{
-					//SetRect(DRASK_RectScissor, CRect(0,0,0,0));
-
-					//SetVec(DRASK_PosSortOriginWs, CVec2(KZERO));
-					//SetVec(DRASK_VecScale, CVec2(1.0f, 1.0f));
-					//SetVec(DRASK_PosCursor, CVec2(KZERO));
-
-					SetCol(DRASK_ColFontMain, Frog_ColCreate(kFrWhite));
-					SetCol(DRASK_ColFontShadow, Frog_ColCreate(kFrBlack));
-
-					SetG(DRASK_GCharSize, 24.0f);
-					SetG(DRASK_ROpacity, 1.0f);
-
-					SetN(DRASK_IFont, 0);
-					SetN(DRASK_NAlignkX, ALIGNK_Center);
-					SetN(DRASK_NAlignkY, ALIGNK_Center);
-
-					SetF(DRASK_FFixedWidthFont, false);
-					SetF(DRASK_FWordWrap, false);
-					SetF(DRASK_FUseScissor, false);
-					SetF(DRASK_FDrawSolid, true);
-				}
-
-	void	SetF(DRASK drask, bool f)
-				{ 
-					FR_ASSERT((drask>=DRASK_FMin)&(drask<DRASK_FMax), "bad drask(F)");
-					m_aF[drask-DRASK_FMin] = f; 
-				}
-	void	SetN(DRASK drask, s16 n)
-				{ 
-					FR_ASSERT((drask>=DRASK_NMin)&(drask<DRASK_NMax), "bad drask(N)");
-					m_aN[drask-DRASK_NMin] = n;
-				}
-	void	SetG(DRASK drask, f32 g)
-				{ 
-					FR_ASSERT((drask>=DRASK_GMin)&(drask<DRASK_GMax), "bad drask(G)");
-					m_aG[drask-DRASK_GMin] = g;
-				}
-	void	SetCol(DRASK drask, FrColor col)
-				{ 
-					FR_ASSERT((drask>=DRASK_ColMin)&(drask<DRASK_ColMax), "bad drask(Col)");
-					m_aCol[drask-DRASK_ColMin] = col;
-				}
-	/*
-	void	SetVec(DRASK drask, CVec2Arg vec)
-				{ 
-					FR_ASSERT((drask>=DRASK_VecMin)&(drask<DRASK_VecMax), "bad drask(Vec)");
-					m_aVec[drask-DRASK_VecMin] = vec;
-				}
-	void	SetRect(DRASK drask, CRectArg rect)
-				{ 
-					FR_ASSERT((drask>=DRASK_RectMin)&(drask<DRASK_RectMax), "bad drask(Rect)");
-					m_aRect[drask-DRASK_RectMin] = rect;
-				} */
-	bool	FGet(DRASK drask) const
-				{
-					FR_ASSERT((drask>=DRASK_FMin)&(drask<DRASK_FMax), "bad drask(F)");
-					return m_aF[drask-DRASK_FMin];
-				}
-	s16		NGet(DRASK drask) const
-				{
-					FR_ASSERT((drask>=DRASK_NMin)&(drask<DRASK_NMax), "bad drask(N)");
-					return m_aN[drask-DRASK_NMin];
-				}
-	f32		GGet(DRASK drask) const
-				{
-					FR_ASSERT((drask>=DRASK_GMin)&(drask<DRASK_GMax), "bad drask(G)");
-					return m_aG[drask-DRASK_GMin];
-				}
-	FrColor	ColGet(DRASK drask) const
-				{
-					FR_ASSERT((drask>=DRASK_ColMin)&(drask<DRASK_ColMax), "bad drask(Col)");
-					return m_aCol[drask-DRASK_ColMin];
-				}
-	/*
-	CVec2	VecGet(DRASK drask) const
-				{
-					FR_ASSERT((drask>=DRASK_VecMin)&(drask<DRASK_VecMax), "bad drask(Vec)");
-					return m_aVec[drask-DRASK_VecMin];
-				}
-	CRect	RectGet(DRASK drask) const
-				{
-					FR_ASSERT((drask>=DRASK_RectMin)&(drask<DRASK_RectMax), "bad drask(Rect)");
-					return m_aRect[drask-DRASK_RectMin];
-				}*/
-
-	void	SetAlignk(ALIGNK alignkX, ALIGNK alignkY)
-				{
-					SetN(DRASK_NAlignkX, alignkX);
-					SetN(DRASK_NAlignkY, alignkY);
-				}
-
-	void	FlushIfChanged(const FrDrawState & drasPrev)
-				{ ; }
-
-	void	PreDraw() const;
-	void	PostDraw() const;
-
-protected:
-	//CRect		m_aRect[DRASK_RectMax - DRASK_RectMin];
-	//CVec2		m_aVec[DRASK_VecMax - DRASK_VecMin];
-	FrColor		m_aCol[DRASK_ColMax - DRASK_ColMin];
-	f32			m_aG[DRASK_GMax - DRASK_GMin];
-	s16			m_aN[DRASK_NMax - DRASK_NMin];
-	bool		m_aF[DRASK_FMax - DRASK_FMin];
-};
-#endif
+} FrDrawState;
 
 
 
-struct FrTextureMip // tag=texmip
+typedef struct FrTextureMip_tag // tag=texmip
 {
 	s32			m_dX;
 	s32			m_dY;
 	size_t		m_cB; // data size
 	u8*			m_aB; // actual texel data
-};
+} FrTextureMip;
 
-struct FrTexture // tag=tex
+typedef struct FrTexture_tag // tag=tex
 {
-	s32				DX()
-						{ return m_aTexmip[0].m_dX; }
-	s32				DY()
-						{ return m_aTexmip[0].m_dY; }
 	
 	FrStringHash	m_shashFilename;	// filename hash, for texture reuse
 	u8				m_cTexmip;
@@ -425,45 +203,41 @@ struct FrTexture // tag=tex
 	FrDrawEnum		m_druTarget;		// gl target type (ie. GL_TEXTURE_2D)
 
 	FrTextureMip	m_aTexmip[1];
-};
+} FrTexture;
 
-class FrDrawStateStack	// tag = drasstk
+inline s32 DXFromTex(FrTexture * pTex)	{ return pTex->m_aTexmip[0].m_dX; }
+inline s32 DYFromTex(FrTexture * pTex)	{ return pTex->m_aTexmip[0].m_dY; }
+
+
+
+typedef struct FrDrawStateStack_tag	// tag = drasstk
 {
-public:
-					FrDrawStateStack()
-					: m_iDrasTop(0)
-						{ ; }
-
-	FrDrawState *	PDrasTop()
-						{ return &m_aDras[m_iDrasTop]; }
-	s16				IDrasTop() const
-						{ return m_iDrasTop; }
-
-	void			Push()
-						{
-							if(!FR_FVERIFY(m_iDrasTop + 1 < FR_DIM(m_aDras), "DrawStateStack Overflow"))
-								return;
-							m_aDras[m_iDrasTop + 1] = m_aDras[m_iDrasTop];
-							++m_iDrasTop;
-						}
-
-	void			Pop()
-						{
-							if(!FR_FVERIFY(m_iDrasTop - 1 >= 0, "DrawStateStack Underflow"))
-								return;
-							--m_iDrasTop;
-						}
-protected:
-	static const int s_cDrasDepth = 10;
-	FrDrawState		m_aDras[s_cDrasDepth];
+	FrDrawState		m_aDras[10];
 	s16				m_iDrasTop;
-};
+
+} FrDrawStateStack;
+
+inline void				Frog_InitDrawStateStack(FrDrawStateStack * pDrasstk)	{ pDrasstk->m_iDrasTop = 0; }
+inline FrDrawState *	Frog_PDrasTop(FrDrawStateStack * pDrasstk)				{ return &pDrasstk->m_aDras[pDrasstk->m_iDrasTop]; }
+
+inline void				Frog_PushDrawStateStack(FrDrawStateStack * pDrasstk)
+						{
+							if(!FR_FVERIFY(pDrasstk->m_iDrasTop + 1 < FR_DIM(pDrasstk->m_aDras), "DrawStateStack Overflow"))
+								return;
+							pDrasstk->m_aDras[pDrasstk->m_iDrasTop + 1] = pDrasstk->m_aDras[pDrasstk->m_iDrasTop];
+							++pDrasstk->m_iDrasTop;
+						}
+
+inline void				Frog_PopDrawStateStack(FrDrawStateStack * pDrasstk)
+						{
+							if (!FR_FVERIFY(pDrasstk->m_iDrasTop - 1 >= 0, "DrawStateStack Underflow"))
+								return;
+							--pDrasstk->m_iDrasTop;
+						}
 
 
 
-
-
-struct FrFontGlyph // tag=glyph
+typedef  struct FrFontGlyph_tag // tag=glyph
 {
 	u16		m_wch;					// UCS2 Codepoint for this glyph
 	f32		m_dXPixels;
@@ -477,10 +251,10 @@ struct FrFontGlyph // tag=glyph
 	f32   	m_uMax;
 	f32 	m_vMin;
 	f32   	m_vMax;
-};
+} FrFontGlyph;
 
 
-struct FrFontGlyphFile //tag=glyphf
+typedef struct FrFontGlyphFile_tag //tag=glyphf
 {
 	s16					m_cGlyph;
 	s32					m_iBaWchKerning; 		// byte offset from the start of this structure to n^2 list of kerning glyph pairs (UCS2)
@@ -492,66 +266,68 @@ struct FrFontGlyphFile //tag=glyphf
 												// you should advance the vertical position by "ascent - descent + lineGap"
 
 	FrFontGlyph			m_aGlyph[1];			// sorted by UCS2 glyph (for binary search)
-};
+} FrFontGlyphFile;
 
-struct FrFont // tag=font
+typedef struct FrFont_tag // tag=font
 {
 	FrTexture * 		m_pTex;
 	FrFontGlyphFile *	m_pGlyphf;
 	u16 * 				m_aWchKerning;
 	f32 *				m_aDxKerning;
-};
+} FrFont;
 
-struct FrFontManager // tag=fontman
+typedef struct FrFontManager_tag // tag=fontman
 {
 	FrFont 				m_aFont[FONTK_Max];
 	FrShaderHandle		m_aShhand[FONTSHK_Max];
 	s32					m_mpFontshkIParamTex[FONTSHK_Max];
-};
+} FrFontManager;
 
-struct FrDrawContext // tag=drac
+typedef struct FrDrawContext_tag // tag=drac
 {
-	void		PushDras()	
-					{
-						m_drasstk.Push();
-						m_pDras = m_drasstk.PDrasTop();
-					}
-
-	void		PopDras()	
-					{
-						m_drasstk.Pop();
-						m_pDras = m_drasstk.PDrasTop();
-					}
 
 	FrShaderManager 	m_shman;
 	FrFontManager 		m_fontman;
 	FrDrawState *		m_pDras;
 	FrDrawStateStack 	m_drasstk;
-};
+} FrDrawContext;
+
+inline void	Frog_PushDras(FrDrawContext * pDrac)	
+	{
+		Frog_PushDrawStateStack(&pDrac->m_drasstk);
+		pDrac->m_pDras = Frog_PDrasTop(&pDrac->m_drasstk);
+	}
+
+inline void	Frog_PopDras(FrDrawContext * pDrac)	
+	{
+		Frog_PopDrawStateStack(&pDrac->m_drasstk);
+		pDrac->m_pDras = Frog_PDrasTop(&pDrac->m_drasstk);
+	}
 
 bool Frog_FTryStaticInitDrawContext(FrDrawContext * pDrac);
+bool Frog_FTryInitDrawContext(FrDrawContext * pDrac);
 void Frog_SetupOrthoViewport(f64 xMin, f64 yMin, f64 xMax, f64 yMax);
 void Frog_FlushFontVerts(FrDrawContext * pDrac);
 
-void Frog_DrawChar(FrDrawContext * pDrac, u32 wCh, const FrRect * pRect, FrColor colFg, FrColor colBg);
-void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * pCoz);
+FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wCh, const FrRect * pRect, FrColor colFg, FrColor colBg);
+FROG_CALL void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * pCoz);
 
 
 
-struct FrScreenTile // tag = tile
+typedef struct FrScreenTile_tag // tag = tile
 {
 	u32				m_wch;
 	FrColor			m_colFg;
 	FrColor			m_colBg;
-};
+} FrScreenTile;
 
 // Map from ascii to tile (w/ colors)
-struct FrTileMap // tag = tmap
+typedef struct FrTileMap_tag // tag = tmap
 {
 	FrScreenTile	m_mpChTile[255];
-};
+} FrTileMap;
 
-struct FrScreen // tag = scr
+typedef struct FrScreen_tag // tag = scr
 {
 	int				m_dX;
 	int				m_dY;
@@ -562,14 +338,14 @@ struct FrScreen // tag = scr
 	FrColor *		m_aColForeBase;		// base color grid
 	FrColor *		m_aColBackBase;		// base color grid
 	*/
-};
+} FrScreen;
 
-FrScreen * Frog_AllocateScreen(int dX, int dY);
-void Frog_FreeScreen(FrScreen * pScreen);
-void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 posUL);
-void Frog_MapScreen(FrScreen * pScr, FrTileMap * pTmap, const char * pCozScreen);
+FROG_CALL FrScreen * Frog_AllocateScreen(int dX, int dY);
+FROG_CALL void Frog_FreeScreen(FrScreen * pScreen);
+FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 posUL);
+FROG_CALL void Frog_MapScreen(FrScreen * pScr, FrTileMap * pTmap, const char * pCozScreen);
 
-void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg);
+FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg);
 
 
 

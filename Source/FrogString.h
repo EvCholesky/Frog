@@ -1,11 +1,9 @@
 #pragma once
 #include "Common.h"
 
-u32 Frog_NSuperFastHashLower (const char * data, size_t len);
+u32 Frog_NSuperFastHashLower (char * data, size_t len);
 
-class FrStringTable;
-
-inline u32 Frog_HvFromPchz(const char * pChz, size_t cB = 0)
+inline u32 Frog_HvFromPchz(char * pChz, size_t cB)
 	{
 		if (!pChz)
 			return 0;
@@ -15,9 +13,9 @@ inline u32 Frog_HvFromPchz(const char * pChz, size_t cB = 0)
 		return Frog_NSuperFastHashLower(pChz, cB);
 	}
 
-inline u32 Frog_HvFromAB(const void * aB, size_t cB)
+inline u32 Frog_HvFromAB(void * aB, size_t cB)
 	{
-		return Frog_NSuperFastHashLower((const char *)aB, cB);
+		return Frog_NSuperFastHashLower((char *)aB, cB);
 	}
 
 // string hash class tracks a (possibly invalid) pointer to the source string
@@ -26,32 +24,30 @@ inline u32 Frog_HvFromAB(const void * aB, size_t cB)
 // string hash class stores a full copy of the string for debug purposes
 #define FR_SHASH_DEBUG_COPY	 0
 
-struct FrStringHash // tag=shash
+typedef struct FrStringHash_tag // tag=shash
 {
-public:
-
 	u32 m_hv;
 
 #if FR_SHASH_DEBUG_POINTER 
-	const char * m_pChzDebugSource; // for debug only! may be invalid!
+	char * m_pChzDebugSource; // for debug only! may be invalid!
 #elif FR_SHASH_DEBUG_COPY
 	char m_aDebugSourceString[256];
 #endif
-};
+} FrStringHash;
 
-inline FrStringHash ShashCreate()
+inline FrStringHash ShashCreateEmpty()
 	{
 		FrStringHash shash;
 		shash.m_hv = 0;
 	#if FR_SHASH_DEBUG_POINTER
-		shash.m_pChzDebugSource = nullptr;
+		shash.m_pChzDebugSource = NULL;
 	#elif FR_SHASH_DEBUG_COPY
 		shash.m_aDebugSourceString[0] = '\0';
 	#endif
 		return shash;
 	}
 
-inline FrStringHash ShashCreate(const char * pChz)
+inline FrStringHash ShashCreate(char * pChz)
 	{
 		FrStringHash shash;
 		shash.m_hv = Frog_HvFromPchz(pChz, 0);
@@ -63,7 +59,7 @@ inline FrStringHash ShashCreate(const char * pChz)
 		return shash;
 	}
 
-inline FrStringHash ShashCreateLen(const char * pChz, size_t cB)
+inline FrStringHash ShashCreateLen(char * pChz, size_t cB)
 	{
 		FrStringHash shash;
 		shash.m_hv = Frog_HvFromPchz(pChz, cB);
@@ -75,7 +71,7 @@ inline FrStringHash ShashCreateLen(const char * pChz, size_t cB)
 		return shash;
 	}
 
-inline const char * PChzDebug(FrStringHash * pShash)
+inline char * PChzDebug(FrStringHash * pShash)
 {
 #if FR_SHASH_DEBUG_POINTER
 	return pShash->m_pChzDebugSource;

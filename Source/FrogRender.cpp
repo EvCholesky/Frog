@@ -183,6 +183,24 @@ bool FTryStaticInitShaderManager(FrShaderManager * pShman)
 		return false;
 	}
 
+	return true;
+}
+
+bool FTryInitShaderManager(FrShaderManager * pShman)
+{
+	for (int iShad = 0; iShad < FR_DIM(pShman->m_aShad); ++iShad)
+	{
+		FrShader * pShad = &pShman->m_aShad[iShad];
+		pShad->m_driProgram = 0;
+		pShad->m_driVertexShader = 0;
+		pShad->m_driFragmentShader = 0;
+	}
+
+	for (int iShhand = 0; iShhand < FR_DIM(pShman->m_mpCoreshkShhand); ++iShhand)
+	{
+		pShman->m_mpCoreshkShhand[iShhand] = SHHAND_Nil;
+	}
+
 	pShman->m_mpCoreshkShhand[CORESHK_Sprite] = ShhandLoad(
 													pShman,
 													"BasicSpriteShader",
@@ -212,7 +230,7 @@ bool FTryStaticInitShaderManager(FrShaderManager * pShman)
 	return true;
 }
 
-FrTexture * PTexLoad(const char* pChzFilename, bool fFlipVertically)
+FrTexture * PTexLoad(char* pChzFilename, bool fFlipVertically)
 {
 	// TODO - should replace this with a hash
 	FrStringHash shashFilename = ShashCreate(pChzFilename);
@@ -288,7 +306,6 @@ FrTexture * PTexLoad(const char* pChzFilename, bool fFlipVertically)
 	return pTex;
 }
 
-
 bool FTryLoadFont(FrFontManager * pFontman, FONTK fontk, const char * pCozFilename)
 {
 	char aCh[1024];
@@ -328,8 +345,7 @@ bool FTryLoadFont(FrFontManager * pFontman, FONTK fontk, const char * pCozFilena
 	return true;
 }
 
-
-bool FTryStaticInitFontManager(FrFontManager * pFontman, FrShaderManager * pShman)
+bool FTryInitFontManager(FrFontManager * pFontman, FrShaderManager * pShman)
 {
 	if (!FTryLoadFont(pFontman, FONTK_Regular, "Assets/Fonts/Console"))
 		return false;
@@ -342,7 +358,7 @@ bool FTryStaticInitFontManager(FrFontManager * pFontman, FrShaderManager * pShma
 void InitFontd(FrFontData * pFontd)
 {
 	pFontd->m_colMain = Frog_ColCreate(kFrWhite);
-	pFontd->m_colShadow	= Frog_ColCreate(0, 0, 0, 128);
+	pFontd->m_colShadow	= Frog_ColFromRGBA(0, 0, 0, 128);
 
 	pFontd->m_gCharSize = 48.0f;
 	pFontd->m_rKerning = 1.0f;
@@ -357,30 +373,34 @@ void InitFontd(FrFontData * pFontd)
 	pFontd->m_posCursor = Frog_Vec2Create(0.0f, 0.0f);
 }
 
-bool FTryStaticInitDrawState(FrDrawState * pDras)
+bool FTryInitDrawState(FrDrawState * pDras)
 {
 	InitFontd(&pDras->m_fontd);
-
 	return true;
 }
 
 bool Frog_FTryStaticInitDrawContext(FrDrawContext * pDrac)
+{
+	if (!FTryStaticInitShaderManager(&pDrac->m_shman))
+		return false;
+	return true;
+}
+
+bool Frog_FTryInitDrawContext(FrDrawContext * pDrac)
 {
 //	s_aQskey 	   = (SQuadSortKey *)pAlloc->EWC_ALLOC(sizeof(SQuadSortKey) * s_cQskeyMax, FR_ALIGN_OF(SQuadSortKey));
 //	s_aQvert 	   = (SQuadVertex *)pAlloc->EWC_ALLOC(sizeof(SQuadVertex) * s_cQvertMax, FR_ALIGN_OF(SQuadVertex));
 //	s_aQvertSorted = (SQuadVertex *)pAlloc->EWC_ALLOC(sizeof(SQuadVertex) * s_cQvertMax, FR_ALIGN_OF(SQuadVertex));
 //	EWC_CASSERT(s_cQvertMax == s_cQskeyMax * 4, "Bad qvert max calculation");
 
-	if (!FTryStaticInitShaderManager(&pDrac->m_shman))
+	if (!FTryInitShaderManager(&pDrac->m_shman))
 		return false;
 
-	if (!FTryStaticInitFontManager(&pDrac->m_fontman, &pDrac->m_shman))
+	if (!FTryInitFontManager(&pDrac->m_fontman, &pDrac->m_shman))
 		return false;
-		//= PFontmanStaticInit(pAlloc, s_drac.m_pShman);
-	//pDrac->m_pDrasstk = &s_drasstk;
 
-	pDrac->m_pDras 	  = pDrac->m_drasstk.PDrasTop();
-	if (!FTryStaticInitDrawState(pDrac->m_pDras))
+	pDrac->m_pDras = Frog_PDrasTop(&pDrac->m_drasstk);
+	if (!FTryInitDrawState(pDrac->m_pDras))
 		return false;
 
 	return true;
@@ -664,14 +684,14 @@ void Frog_FlushFontVerts(FrDrawContext * pDrac)
 	pFvbuf->m_cFvert = 0;
 }	
 
-void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * pCoz)
+FROG_CALL void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * pCoz)
 {
 	// draw characters to the right. pos is the left side baseline
 
 	CreateVerts(&pDrac->m_fontman, pDrac->m_pDras, &g_Fvbuf, pos, pCoz);
 }
 
-void Frog_DrawChar(FrDrawContext * pDrac, u32 wch, const FrRect * pRect, FrColor colFg, FrColor colBg)
+FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wch, const FrRect * pRect, FrColor colFg, FrColor colBg)
 {
 	FrFontManager * pFontman = &pDrac->m_fontman;
 	FrDrawState * pDras = pDrac->m_pDras;
@@ -753,7 +773,7 @@ void Frog_DrawChar(FrDrawContext * pDrac, u32 wch, const FrRect * pRect, FrColor
 
 }
 
-FrScreen * Frog_AllocateScreen(int dX, int dY)
+FROG_CALL FrScreen * Frog_AllocateScreen(int dX, int dY)
 {
 	size_t cBTile = sizeof(FrScreenTile) * dX * dY;
 	size_t cBTotal = sizeof(FrScreen) + cBTile; 
@@ -768,12 +788,12 @@ FrScreen * Frog_AllocateScreen(int dX, int dY)
 	return pScr;
 }
 
-void Frog_FreeScreen(FrScreen * pScreen)
+FROG_CALL void Frog_FreeScreen(FrScreen * pScreen)
 {
 	free(pScreen);
 }
 
-void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 posUL)
+FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 posUL)
 {
 	static const float s_dXChar = 20.0f;
 	static const float s_dYChar = 30.0f;
@@ -798,7 +818,7 @@ void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 posUL)
 	}
 }
 
-void Frog_MapScreen(FrScreen * pScr, FrTileMap * pTmap, const char * pChzScreen)
+FROG_CALL void Frog_MapScreen(FrScreen * pScr, FrTileMap * pTmap, const char * pChzScreen)
 {
 	for (int y = 0; y < pScr->m_dY; ++y)
 	{
@@ -813,7 +833,7 @@ void Frog_MapScreen(FrScreen * pScr, FrTileMap * pTmap, const char * pChzScreen)
 	}
 }
 
-void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg)
+FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg)
 {
 	FrScreenTile * pTile = &pTmap->m_mpChTile[ch];
 	pTile->m_wch = wchOut;

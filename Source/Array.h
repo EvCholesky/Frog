@@ -1,5 +1,5 @@
 #pragma once
-#include "Common.h"
+#include "CommonCpp.h"
 #include <cstdlib>
 #include <string.h>
 
@@ -427,7 +427,7 @@ public:
 						size_t c = cSize;
 						if (c > m_cMax) 
 						{
-							size_t cNew = frMax(m_cMax * 2, c); 
+							size_t cNew = Frog_NMax(m_cMax * 2, c); 
 							Resize(cNew);
 						}
 					}

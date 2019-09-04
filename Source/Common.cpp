@@ -1,39 +1,9 @@
-#include "common.h"
+#include "commonCpp.h"
 
 #include <cstdarg>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-Buffer::~Buffer()
-{
-	ResizeBuffer(this, 0);
-}
-
-void ResizeBuffer(Buffer * pBuf, int cB)
-{
-	u8 * pBPrev = pBuf->m_pB;
-	int cBPrev = pBuf->m_cB;
-
-	if (cB)
-	{
-		pBuf->m_pB = (u8 *)malloc(cB);
-	}
-
-	int cBCopy = frMin(cBPrev, cB);
-	if (cBCopy)
-	{
-		memcpy(pBuf->m_pB, pBPrev, cBCopy);
-	}
-
-	if (pBPrev)
-	{
-		free(pBPrev);
-	}
-
-	pBuf->m_cB = cBCopy;
-	pBuf->m_cBMax = cB;
-}
 
 void FrAssertHandler(const char* pChzFile, u32 line, const char* pChzCondition, const char* pChzMessage, ... )
 {
@@ -203,7 +173,7 @@ void EnsureTerminated(SStringBuffer * pStrbuf, char ch)
 	if (pStrbuf->m_cBMax <= 0)
 		return;
 
-	iB = frMin(iB, pStrbuf->m_cBMax -1);
+	iB =  Frog_NMin(iB, pStrbuf->m_cBMax -1);
 
 	auto pCozEnd = &pStrbuf->m_pCozBegin[iB];
 	auto pCozBackup = pCozEnd; // - 1;	// skip the spot our terminator will go

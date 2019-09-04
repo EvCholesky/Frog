@@ -140,15 +140,18 @@
     <ClCompile Include="Source\FrogRender.cpp" />
     <ClCompile Include="Source\FrogString.cpp" />
     <ClCompile Include="Source\main.cpp" />
+    <ClCompile Include="Source\SimpleMaze.c" />
     <ClCompile Include="Source\stb_image.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Array.h" />
     <ClInclude Include="Source\Common.h" />
+    <ClInclude Include="Source\CommonCpp.h" />
     <ClInclude Include="Source\FrogPlatform.h" />
     <ClInclude Include="Source\FrogRender.h" />
     <ClInclude Include="Source\FrogString.h" />
     <ClInclude Include="Source\GlWrapper.h" />
+    <ClInclude Include="Source\SimpleMaze.h" />
     <ClInclude Include="Source\stb_image.h" />
   </ItemGroup>
   <ItemGroup>

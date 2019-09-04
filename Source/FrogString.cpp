@@ -94,7 +94,7 @@ FR_FORCE_INLINE u16 NGet16bitsLower ( const void * p )
 	return bits.m_u16;
 }
 
-u32 Frog_NSuperFastHashLower (const char * pB, size_t cB) 
+u32 Frog_NSuperFastHashLower (char * pB, size_t cB) 
 {
 	u32 hash = 0, tmp;
 	int cBRemain;
