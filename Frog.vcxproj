@@ -136,6 +136,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Source\Common.cpp" />
+    <ClCompile Include="Source\FrogInput.cpp" />
     <ClCompile Include="Source\FrogPlatform.cpp" />
     <ClCompile Include="Source\FrogRender.cpp" />
     <ClCompile Include="Source\FrogString.cpp" />
@@ -147,6 +148,7 @@
     <ClInclude Include="Source\Array.h" />
     <ClInclude Include="Source\Common.h" />
     <ClInclude Include="Source\CommonCpp.h" />
+    <ClInclude Include="Source\FrogInput.h" />
     <ClInclude Include="Source\FrogPlatform.h" />
     <ClInclude Include="Source\FrogRender.h" />
     <ClInclude Include="Source\FrogString.h" />

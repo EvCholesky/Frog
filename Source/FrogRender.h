@@ -9,26 +9,20 @@ typedef s16 FrShaderHandle; // tag = shhand
 
 enum { SHHAND_Nil = -1 };
 
-#ifdef __cplusplus
-#define FROG_CALL extern "C"
-#else
-#define FROG_CALL
-#endif
-
-typedef struct FrVec2_tag
+typedef struct FrVec2_t
 {
 	f32 m_x;
 	f32 m_y;
 } FrVec2;
 
-typedef struct FrVec3_tag
+typedef struct FrVec3_t
 {
 	f32 m_x;
 	f32 m_y;
 	f32 m_z;
 } FrVec3;
 
-typedef struct FrVec4_tag
+typedef struct FrVec4_t
 {
 	f32 m_x;
 	f32 m_y;
@@ -36,7 +30,7 @@ typedef struct FrVec4_tag
 	f32 m_w;
 } FrVec4;
 
-typedef struct FrRect_tag
+typedef struct FrRect_t
 {
 	FrVec2		m_posMin;
 	FrVec2		m_posMax;
@@ -77,21 +71,21 @@ inline FrVec2 Frog_PosCenter(const FrRect * pRect)
 		return Frog_Vec2Create(pRect->m_posMin.m_x + dXHalf, pRect->m_posMin.m_y + dYHalf);
 	}
 
-typedef struct FrShader_tag // tag = shad
+typedef struct FrShader_t // tag = shad
 {
 	FrDrawInt	m_driProgram;
 	FrDrawInt	m_driVertexShader;
 	FrDrawInt	m_driFragmentShader;
 } FrShader;
 
-typedef enum CORESHK_tag // core shader kind
+typedef enum CORESHK_t // core shader kind
 {
 	CORESHK_Sprite,
 	CORESHK_Environment,	// like sprite, but with "perspective" distortion
 	CORESHK_Max,
 } CORESHK;
 
-typedef struct FrShaderManager_tag // tag = shman
+typedef struct FrShaderManager_t // tag = shman
 {
 	FrShader		m_aShad[16];
 	FrShaderHandle	m_mpCoreshkShhand[CORESHK_Max];
@@ -108,7 +102,7 @@ enum { kFrYellow	= (s32)0xFF10FFFF };
 enum { kFrMagenta	= (s32)0xFFFF10FF };
 enum { kFrCyan 		= (s32)0xFFFFFF10 };
 
-typedef union FrColor_tag
+typedef union FrColor_t
 {
 	u32 m_rgba;
 	struct 
@@ -130,7 +124,7 @@ inline FrColorVec Frog_ColvecCreate(FrColor col)
 	return colvec;
 }
 
-typedef enum ALIGNK_tag
+typedef enum ALIGNK_t
 {
 	ALIGNK_Nil,
 	ALIGNK_Center,
@@ -142,7 +136,7 @@ typedef enum ALIGNK_tag
 	ALIGNK_Top		= ALIGNK_SideMax,
 } ALIGNK;
 
-typedef enum FONTK_tag
+typedef enum FONTK_t
 {
 	FONTK_Regular,
 	FONTK_Bold,
@@ -150,7 +144,7 @@ typedef enum FONTK_tag
 	FONTK_Max,
 } FONTK;
 
-typedef enum FONTSHK_tag
+typedef enum FONTSHK_t
 {
 	FONTSHK_Basic,
 
@@ -159,7 +153,7 @@ typedef enum FONTSHK_tag
 
 
 
-typedef struct FrFontData_tag // tag = fontd
+typedef struct FrFontData_t // tag = fontd
 {
 	FrColor			m_colMain;
 	FrColor			m_colShadow;
@@ -175,14 +169,14 @@ typedef struct FrFontData_tag // tag = fontd
 	FrVec2			m_posCursor;
 } FrFontData;
 
-typedef struct FrDrawState_tag // tag = dras
+typedef struct FrDrawState_t // tag = dras
 {
 	FrFontData		m_fontd;
 } FrDrawState;
 
 
 
-typedef struct FrTextureMip_tag // tag=texmip
+typedef struct FrTextureMip_t // tag=texmip
 {
 	s32			m_dX;
 	s32			m_dY;
@@ -190,7 +184,7 @@ typedef struct FrTextureMip_tag // tag=texmip
 	u8*			m_aB; // actual texel data
 } FrTextureMip;
 
-typedef struct FrTexture_tag // tag=tex
+typedef struct FrTexture_t // tag=tex
 {
 	
 	FrStringHash	m_shashFilename;	// filename hash, for texture reuse
@@ -210,7 +204,7 @@ inline s32 DYFromTex(FrTexture * pTex)	{ return pTex->m_aTexmip[0].m_dY; }
 
 
 
-typedef struct FrDrawStateStack_tag	// tag = drasstk
+typedef struct FrDrawStateStack_t	// tag = drasstk
 {
 	FrDrawState		m_aDras[10];
 	s16				m_iDrasTop;
@@ -237,7 +231,7 @@ inline void				Frog_PopDrawStateStack(FrDrawStateStack * pDrasstk)
 
 
 
-typedef  struct FrFontGlyph_tag // tag=glyph
+typedef  struct FrFontGlyph_t // tag=glyph
 {
 	u16		m_wch;					// UCS2 Codepoint for this glyph
 	f32		m_dXPixels;
@@ -254,7 +248,7 @@ typedef  struct FrFontGlyph_tag // tag=glyph
 } FrFontGlyph;
 
 
-typedef struct FrFontGlyphFile_tag //tag=glyphf
+typedef struct FrFontGlyphFile_t //tag=glyphf
 {
 	s16					m_cGlyph;
 	s32					m_iBaWchKerning; 		// byte offset from the start of this structure to n^2 list of kerning glyph pairs (UCS2)
@@ -268,7 +262,7 @@ typedef struct FrFontGlyphFile_tag //tag=glyphf
 	FrFontGlyph			m_aGlyph[1];			// sorted by UCS2 glyph (for binary search)
 } FrFontGlyphFile;
 
-typedef struct FrFont_tag // tag=font
+typedef struct FrFont_t // tag=font
 {
 	FrTexture * 		m_pTex;
 	FrFontGlyphFile *	m_pGlyphf;
@@ -276,14 +270,14 @@ typedef struct FrFont_tag // tag=font
 	f32 *				m_aDxKerning;
 } FrFont;
 
-typedef struct FrFontManager_tag // tag=fontman
+typedef struct FrFontManager_t // tag=fontman
 {
 	FrFont 				m_aFont[FONTK_Max];
 	FrShaderHandle		m_aShhand[FONTSHK_Max];
 	s32					m_mpFontshkIParamTex[FONTSHK_Max];
 } FrFontManager;
 
-typedef struct FrDrawContext_tag // tag=drac
+typedef struct FrDrawContext_t // tag=drac
 {
 
 	FrShaderManager 	m_shman;
@@ -314,7 +308,7 @@ FROG_CALL void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * 
 
 
 
-typedef struct FrScreenTile_tag // tag = tile
+typedef struct FrScreenTile_t // tag = tile
 {
 	u32				m_wch;
 	FrColor			m_colFg;
@@ -322,12 +316,12 @@ typedef struct FrScreenTile_tag // tag = tile
 } FrScreenTile;
 
 // Map from ascii to tile (w/ colors)
-typedef struct FrTileMap_tag // tag = tmap
+typedef struct FrTileMap_t // tag = tmap
 {
 	FrScreenTile	m_mpChTile[255];
 } FrTileMap;
 
-typedef struct FrScreen_tag // tag = scr
+typedef struct FrScreen_t // tag = scr
 {
 	int				m_dX;
 	int				m_dY;

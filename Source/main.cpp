@@ -1,9 +1,11 @@
 ﻿#include "Common.h"
+#include "FrogInput.h"
 #include "FrogRender.h"
 #include "FrogPlatform.h"
 
 #include "SimpleMaze.h"
 
+FrInput g_input;
 FrDrawContext g_drac;
 static const int s_dXWindow = 1200;
 static const int s_dYWindow = 800;
@@ -19,6 +21,8 @@ int main(int cpChzArg, const char * apChzArg[])
 
 	if (!Frog_FTryCreateWindow(&g_plat, s_dXWindow, s_dYWindow, "Frog"))
 		return 0;
+
+	Frog_InitInput(&g_input, &g_plat);
 
 	if (!Frog_FTryStaticInitDrawContext(&g_drac))
 		return 0;
@@ -37,11 +41,10 @@ int main(int cpChzArg, const char * apChzArg[])
 	{
 		Frog_ClearScreen(&g_plat);
 
-		UpdateMaze(&maze, & g_drac);
+		UpdateMaze(&maze, &g_drac, &g_input);
 
 		Frog_FlushFontVerts(&g_drac);
 		Frog_SwapBuffers(&g_plat);
-		Frog_PollInput(&g_plat);
 
 		Frog_WaitUntilFrameEnd(&g_plat.m_pltime, cTickLast);
 		Frog_FrameEndTimers(&g_plat);

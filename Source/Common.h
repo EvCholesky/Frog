@@ -20,18 +20,22 @@ typedef double f64;
 typedef size_t uSize;
 typedef ptrdiff_t sSize;
 
-
+#ifdef __cplusplus
+#define FROG_CALL extern "C"
+#else
+#define FROG_CALL
+#endif
 
 inline int Frog_NMin(int a, int b)	{ return (a < b) ? a : b; }
 inline int Frog_NMax(int a, int b)	{ return (a > b) ? a : b; }
 
-enum EDGES 	// EDGE State
+typedef enum EDGES_tag
 {
 	EDGES_Off,
 	EDGES_Release,
 	EDGES_Hold,
 	EDGES_Press	
-};
+} EDGES;
 
 #define FR_DIM(arr) (sizeof(arr) / sizeof(*arr))
 #define FR_PMAX(arr) &arr[FR_DIM(arr)]
@@ -56,7 +60,7 @@ enum EDGES 	// EDGE State
 	#define		FR_DEBUG_BREAK()   asm("int $3")
 #endif
 
-void FrAssertHandler( const char* pChzFile, u32 line, const char* pChzCondition, const char* pChzMessage, ...);
+FROG_CALL void FrAssertHandler( const char* pChzFile, u32 line, const char* pChzCondition, const char* pChzMessage, ...);
 
 #define FR_VERIFY( PREDICATE, ... ) \
 	do { if (!(PREDICATE)) { \
@@ -115,9 +119,9 @@ inline u8 U8Coerce(u64 n)		{ u8 nRet = (u8)n;		FR_ASSERT((u64)nRet == n, "u8Coer
 
 
 
-void ZeroAB(void * pDest, size_t cB);
-void FillAB(u8 b, void * pDest, size_t cB);
-void CopyAB(const void * pSource, void * pDest, size_t cB);
+FROG_CALL void ZeroAB(void * pDest, size_t cB);
+FROG_CALL void FillAB(u8 b, void * pDest, size_t cB);
+FROG_CALL void CopyAB(const void * pSource, void * pDest, size_t cB);
 
 void ShowErrorV(const char * pChzFormat, va_list ap);
 void ShowError(const char * pChzFormat, ...);

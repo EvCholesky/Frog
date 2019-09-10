@@ -824,11 +824,12 @@ FROG_CALL void Frog_MapScreen(FrScreen * pScr, FrTileMap * pTmap, const char * p
 	{
 		for (int x = 0; x < pScr->m_dX; ++x)
 		{
+			int iTileFlip = x + ((pScr->m_dY - 1 - y) * pScr->m_dX);
 			int iTile = x + (y * pScr->m_dX);
 			u8 ch = pChzScreen[iTile];
 
 			FrScreenTile * pTile = &pTmap->m_mpChTile[ch];
-			pScr->m_aTile[iTile] = *pTile;
+			pScr->m_aTile[iTileFlip] = *pTile;
 		}
 	}
 }

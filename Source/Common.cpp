@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-void FrAssertHandler(const char* pChzFile, u32 line, const char* pChzCondition, const char* pChzMessage, ... )
+FROG_CALL void FrAssertHandler(const char* pChzFile, u32 line, const char* pChzCondition, const char* pChzMessage, ... )
 {
 	printf("Assertion failed: \"%s\" at %s:%u\n", pChzCondition, pChzFile, line);
 
@@ -19,17 +19,17 @@ void FrAssertHandler(const char* pChzFile, u32 line, const char* pChzCondition, 
 	}
 }
 
-void ZeroAB(void * pDest, size_t cB)
+FROG_CALL void ZeroAB(void * pDest, size_t cB)
 {
 	memset(pDest, 0, cB);
 }
 
-void FillAB(u8 b, void * pDest, size_t cB)
+FROG_CALL void FillAB(u8 b, void * pDest, size_t cB)
 {
 	memset(pDest, b, cB);
 }
 
-void CopyAB(const void * pSource, void * pDest, size_t cB)
+FROG_CALL void CopyAB(const void * pSource, void * pDest, size_t cB)
 {
 	memcpy(pDest, pSource, cB);
 }
