@@ -28,6 +28,8 @@ typedef ptrdiff_t sSize;
 
 inline int Frog_NMin(int a, int b)	{ return (a < b) ? a : b; }
 inline int Frog_NMax(int a, int b)	{ return (a > b) ? a : b; }
+inline f32 Frog_GMin(f32 a, f32 b)	{ return (a < b) ? a : b; }
+inline f32 Frog_GMax(f32 a, f32 b)	{ return (a > b) ? a : b; }
 
 typedef enum EDGES_tag
 {

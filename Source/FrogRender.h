@@ -2,12 +2,22 @@
 
 #include "Common.h"
 #include "FrogString.h"
+#include <math.h>
 
 typedef s32 FrDrawInt;		// tag = dri
 typedef u32 FrDrawEnum;		// tag = dru
 typedef s16 FrShaderHandle; // tag = shhand
 
 enum { SHHAND_Nil = -1 };
+
+inline f32 Frog_GSqrt(f32 x)			{ return sqrtf(x); }
+inline f32 Frog_GAbs(f32 x)				{ return fabsf(x); }
+
+inline f32 Frog_GCurveS(f32 t)			{ return t * t * (3.0f - t - t); }
+inline f32 Frog_GCurveZ(f32 t)			{ return 1.0f - Frog_GCurveS(t); }
+inline f32 Frog_GCurveBell(f32 t)		{ return Frog_GCurveZ( Frog_GAbs(t + t - 1.0f)); }
+
+
 
 typedef struct FrVec2_t
 {
@@ -42,6 +52,39 @@ inline FrVec2 Frog_Vec2Create(f32 x, f32 y)					{ FrVec2 vec2 = {x, y}; return v
 inline FrVec3 Frog_Vec3Create(f32 x, f32 y, f32 z)			{ FrVec3 vec3 = {x, y, z}; return vec3; }
 inline FrVec4 Frog_Vec4Create(f32 x, f32 y, f32 z, f32 w)	{ FrVec4 vec4 = {x, y, z, 2}; return vec4; }
 
+inline FrVec2 Frog_Vec2Add(FrVec2 * pVecA, FrVec2 * pVecB)	
+{
+	FrVec2 vec2 = {pVecA->m_x + pVecB->m_x, pVecA->m_y + pVecB->m_y}; 
+	return vec2; 
+}
+inline FrVec3 Frog_Vec3Add(FrVec3 * pVecA, FrVec3 * pVecB)
+{
+	FrVec3 vec3 = {pVecA->m_x + pVecB->m_x, pVecA->m_y + pVecB->m_y, pVecA->m_z + pVecB->m_z}; 
+	return vec3; 
+}
+
+inline FrVec2 Frog_Vec2Sub(FrVec2 * pVecA, FrVec2 * pVecB)	
+{
+	FrVec2 vec2 = {pVecA->m_x - pVecB->m_x, pVecA->m_y - pVecB->m_y}; 
+	return vec2; 
+}
+inline FrVec3 Frog_Vec3Sub(FrVec3 * pVecA, FrVec3 * pVecB)
+{
+	FrVec3 vec3 = {pVecA->m_x - pVecB->m_x, pVecA->m_y - pVecB->m_y, pVecA->m_z - pVecB->m_z}; 
+	return vec3; 
+}
+
+inline FrVec2 Frog_Vec2MulAdd(FrVec2 * pVecA, FrVec2 * pVecB, f32 r)	
+{
+	FrVec2 vec2 = {pVecA->m_x + pVecB->m_x*r, pVecA->m_y + pVecB->m_y*r}; 
+	return vec2; 
+}
+inline FrVec3 Frog_Vec3MulAdd(FrVec3 * pVecA, FrVec3 * pVecB, f32 r)
+{
+	FrVec3 vec3 = {pVecA->m_x + pVecB->m_x*r, pVecA->m_y + pVecB->m_y*r, pVecA->m_z + pVecB->m_z*r}; 
+	return vec3; 
+}
+
 inline FrRect Frog_RectCreate(f32 xMin, f32 yMin, f32 xMax, f32 yMax)	
 	{ 
 		FrRect rect = {{xMin, yMin}, {xMax, yMax}};  
@@ -70,6 +113,26 @@ inline FrVec2 Frog_PosCenter(const FrRect * pRect)
 		f32 dYHalf = (pRect->m_posMax.m_y - pRect->m_posMin.m_y) * 0.5f;
 		return Frog_Vec2Create(pRect->m_posMin.m_x + dXHalf, pRect->m_posMin.m_y + dYHalf);
 	}
+
+// smoothing parameters
+typedef struct FrSmp_t // tag = smp
+{
+	float m_dGMin;	// ending slope 
+	float m_dGMax;	// starting slope
+	float m_dTMax;	// max time used to determine the smoothing curve, may take longer than this to smooth if dGMax limited
+} FrSmp;
+
+FROG_CALL f32 Frog_GSmooth(f32 gCurrent, f32 gTarget, const FrSmp * pSmp, f32 dT);
+//f32 GSmoothR(f32 gCurrent, f32 gTarget, f32 rPerSecond, f32 gMinStep, f32 dT);
+
+inline FrVec2		Frog_PosSmooth(FrVec2 gCurrent, FrVec2 gTarget, const FrSmp * pSmp, f32 dT)
+						{
+							// BB - should do 2D smooth so it doesn't smooth faster on diagonals
+
+							f32 x = Frog_GSmooth(gCurrent.m_x, gTarget.m_y, pSmp, dT);
+							f32 y = Frog_GSmooth(gCurrent.m_x, gTarget.m_y, pSmp, dT);
+							return Frog_Vec2Create(x,y);
+						}
 
 typedef struct FrShader_t // tag = shad
 {
@@ -303,7 +366,7 @@ bool Frog_FTryInitDrawContext(FrDrawContext * pDrac);
 void Frog_SetupOrthoViewport(f64 xMin, f64 yMin, f64 xMax, f64 yMax);
 void Frog_FlushFontVerts(FrDrawContext * pDrac);
 
-FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wCh, const FrRect * pRect, FrColor colFg, FrColor colBg);
+FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wCh, const FrRect * pRect, FrColor colFg, FrColor colBg, float rRgb);
 FROG_CALL void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * pCoz);
 
 
@@ -325,6 +388,8 @@ typedef struct FrScreen_t // tag = scr
 {
 	int				m_dX;
 	int				m_dY;
+	float			m_dXCharPixel;		// pixel width of characters
+	float			m_dYCharPixel;		// pixel width of characters
 
 	FrScreenTile *	m_aTile;
 	/*
@@ -334,9 +399,30 @@ typedef struct FrScreen_t // tag = scr
 	*/
 } FrScreen;
 
+typedef enum SCRTRK_t // SCReen TRansition Kind
+{
+	SCRTRK_None,
+	SCRTRK_Translate,
+	SCRTRK_Fade,
+} SCRTRK;
+
+typedef struct FrScreenTransition_t // tag = scrtr
+{
+	FrScreen *		m_pScrPrev;
+	FrScreen *		m_pScr;
+	float			m_r;
+	FrVec2			m_dPos;			// ending offset for previous screen
+	SCRTRK			m_scrtrk;
+} FrScreenTransition;
+
+FROG_CALL void Frog_InitTransition(FrScreenTransition * pScrtr);
+FROG_CALL void Frog_SetTransition(FrScreenTransition * pScrtr, SCRTRK scrtrk, FrScreen * pScrPrev, FrScreen * pScrNext);
+FROG_CALL void Frog_UpdateTransition(FrScreenTransition * pScrtr, f32 dT);
+FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrScreenTransition * pScrtr, FrVec2 pos);
+
 FROG_CALL FrScreen * Frog_AllocateScreen(int dX, int dY);
 FROG_CALL void Frog_FreeScreen(FrScreen * pScreen);
-FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 posUL);
+FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 posUL, float rRGB);
 FROG_CALL void Frog_MapScreen(FrScreen * pScr, FrTileMap * pTmap, const char * pCozScreen);
 
 FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg);

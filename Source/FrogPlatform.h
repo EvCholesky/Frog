@@ -63,6 +63,12 @@ bool Frog_FTrySetTimerResolution(u32 msResolution);
 s64 Frog_CTickPerSecond();
 s64 Frog_CTickWallClock();
 
+FR_FORCE_INLINE f32 DTElapsed(s64 cTickStart, s64 cTickEnd, float rTickToSecond)
+{
+    return f32(cTickEnd - cTickStart) * rTickToSecond;
+}
+
+
 bool Frog_FTryCreateWindow(FrPlatform * pPlat, int dX, int dY, const char* pChzTitle);
 bool Frog_FShouldWindowClose(FrPlatform * pPlat); 
 void Frog_ClearScreen(FrPlatform * pPlat);

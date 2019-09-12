@@ -38,11 +38,6 @@ void Frog_InitPlatformTime(FrPlatformTime * pPltime, int nHzTarget)
 	pPltime->m_rTickToSecond = 1.0f / f32(pPltime->m_cTickPerSecond);
 }
 
-FR_FORCE_INLINE f32 DTElapsed(s64 cTickStart, s64 cTickEnd, float rTickToSecond)
-{
-    return f32(cTickEnd - cTickStart) * rTickToSecond;
-}
-
 void Frog_ClearTimers(FrPlatform * pPlat)
 {
 	ZeroAB(pPlat->m_mpTvalCTickStart, sizeof(pPlat->m_mpTvalCTickStart));

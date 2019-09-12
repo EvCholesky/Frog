@@ -32,23 +32,29 @@ int main(int cpChzArg, const char * apChzArg[])
 
 	Frog_SetupOrthoViewport(0, 0, s_dXWindow, s_dYWindow);
 
-	auto cTickLast = Frog_CTickWallClock();
+	s64 cTickNew;
+	s64 cTickPrev = Frog_CTickWallClock();
 
 	Maze maze;
 	InitMaze(&maze);
 
+	f32 dTPrev = g_plat.m_pltime.m_dTFrameTarget;
 	while (!Frog_FShouldWindowClose(&g_plat))
 	{
 		Frog_ClearScreen(&g_plat);
 
-		UpdateMaze(&maze, &g_drac, &g_input);
+		UpdateMaze(&maze, &g_drac, &g_input, dTPrev);
 
 		Frog_FlushFontVerts(&g_drac);
 		Frog_SwapBuffers(&g_plat);
 
-		Frog_WaitUntilFrameEnd(&g_plat.m_pltime, cTickLast);
+		Frog_WaitUntilFrameEnd(&g_plat.m_pltime, cTickPrev);
 		Frog_FrameEndTimers(&g_plat);
-		cTickLast = Frog_CTickWallClock();
+
+		cTickNew = Frog_CTickWallClock();
+		dTPrev = DTElapsed(cTickPrev, cTickNew, g_plat.m_pltime.m_rTickToSecond);
+		cTickPrev = cTickNew;
+
 	}
 
 	Frog_ShutdownPlatform(&g_plat);

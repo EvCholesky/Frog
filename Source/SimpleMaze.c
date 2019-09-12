@@ -32,10 +32,10 @@ typedef enum FDIR_tag
 #define kDXMaze 6
 #define kDYMaze 6
 
-int s_xStart = 0;
-int s_yStart = 0;
-int s_xEnd = 5;
-int s_yEnd = 5;
+static const int s_xStart = 0;
+static const int s_yStart = 0;
+static const int s_xEnd = 5;
+static const int s_yEnd = 5;
 
 static FDIR s_aFdir[] = 
 {
@@ -217,17 +217,32 @@ FrScreen * PScreenCreate(Maze * pMaze, int x, int y)
 	return pScr;
 }
 
-void ChangeCurScreen(Maze * pMaze, int xNew, int yNew)
+void SetCurScreen(Maze * pMaze, int xNew, int yNew)
 {
-	if (pMaze->m_pScrCur)
-	{
-		Frog_FreeScreen(pMaze->m_pScrCur);
-		pMaze->m_pScrCur = NULL;
-	}
+	pMaze->m_pScrCur = PScreenCreate(pMaze, xNew, yNew);
+	pMaze->m_xScr = xNew;
+	pMaze->m_yScr = yNew;
+
+	Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_None, NULL, pMaze->m_pScrCur);
+}
+
+void TranslateCurScreen(Maze * pMaze, int xNew, int yNew, FrVec2 dPosTransit)
+{
+	FrScreen * pScrPrev = pMaze->m_pScrCur;
 
 	pMaze->m_pScrCur = PScreenCreate(pMaze, xNew, yNew);
 	pMaze->m_xScr = xNew;
 	pMaze->m_yScr = yNew;
+
+	if (!pScrPrev)
+	{
+		Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_None, NULL, pMaze->m_pScrCur);
+	}
+	else
+	{
+		Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_Translate, pScrPrev, pMaze->m_pScrCur);
+		pMaze->m_scrtr.m_dPos = dPosTransit;
+	}
 }
 
 void InitMaze(Maze * pMaze)
@@ -253,12 +268,15 @@ void InitMaze(Maze * pMaze)
 	pMaze->m_yScr = s_yStart;
 
 	pMaze->m_pScrCur = NULL;
-	ChangeCurScreen(pMaze, pMaze->m_xScr, pMaze->m_yScr);
+	SetCurScreen(pMaze, pMaze->m_xScr, pMaze->m_yScr);
 }
 
 void UpdateInput(Maze * pMaze, FrInput * pInput)
 {
 	Frog_PollInput(pInput);
+
+	if (pMaze->m_scrtr.m_scrtrk != SCRTRK_None)
+		return;
 
 	FrInputEventIterator inevit = Frog_Inevit(pInput->m_pInevfifo);
 	FrInputEvent * pInev;
@@ -267,31 +285,35 @@ void UpdateInput(Maze * pMaze, FrInput * pInput)
 		if (pInev->m_edges != EDGES_Press)
 			continue;
 
+		FrScreen * pScrCur = pMaze->m_pScrCur;
+		f32 dXScreen = (f32)pScrCur->m_dX * pScrCur->m_dXCharPixel;
+		f32 dYScreen = (f32)pScrCur->m_dY * pScrCur->m_dYCharPixel;
+
 		FDIR fdir = FdirFromXyScreen(pMaze->m_xScr, pMaze->m_yScr);
 		switch (pInev->m_keycode)
 		{
 		case KEYCODE_ArrowUp:
 			if ((fdir & FDIR_U) && pMaze->m_yScr > 0)
 			{
-				ChangeCurScreen(pMaze, pMaze->m_xScr, pMaze->m_yScr - 1);
+				TranslateCurScreen(pMaze, pMaze->m_xScr, pMaze->m_yScr - 1, Frog_Vec2Create(0.0f, -dYScreen));
 			}
 			break;
 		case KEYCODE_ArrowDown:
 			if ((fdir & FDIR_D) && pMaze->m_yScr < kDYMaze-1)
 			{
-				ChangeCurScreen(pMaze, pMaze->m_xScr, pMaze->m_yScr + 1);
+				TranslateCurScreen(pMaze, pMaze->m_xScr, pMaze->m_yScr + 1, Frog_Vec2Create(0.0f, dYScreen));
 			}
 			break;
 		case KEYCODE_ArrowLeft:
 			if ((fdir & FDIR_L) && pMaze->m_xScr > 0)
 			{
-				ChangeCurScreen(pMaze, pMaze->m_xScr - 1, pMaze->m_yScr);
+				TranslateCurScreen(pMaze, pMaze->m_xScr - 1, pMaze->m_yScr, Frog_Vec2Create(dXScreen, 0.0f));
 			}
 			break;
 		case KEYCODE_ArrowRight:
 			if ((fdir & FDIR_R) && pMaze->m_xScr < kDXMaze-1)
 			{
-				ChangeCurScreen(pMaze, pMaze->m_xScr + 1, pMaze->m_yScr);
+				TranslateCurScreen(pMaze, pMaze->m_xScr + 1, pMaze->m_yScr, Frog_Vec2Create(-dXScreen, 0.0f));
 			}
 			break;
 		}
@@ -299,7 +321,7 @@ void UpdateInput(Maze * pMaze, FrInput * pInput)
 	Frog_ClearInputEvents(pInput->m_pInevfifo);
 }
 
-void UpdateMaze(Maze * pMaze, FrDrawContext * pDrac, FrInput * pInput)
+void UpdateMaze(Maze * pMaze, FrDrawContext * pDrac, FrInput * pInput, f32 dT)
 {
 	FrVec2 s_posScreen = Frog_Vec2Create(10, 400);
 	//static const char * s_pChzQuickFox = "TheQuickBrownFoxJumpsOverTheLazyDog";
@@ -309,7 +331,8 @@ void UpdateMaze(Maze * pMaze, FrDrawContext * pDrac, FrInput * pInput)
 	sprintf_s(aCh, FR_DIM(aCh), "(%d, %d)", pMaze->m_xScr, pMaze->m_yScr);
 	Frog_DrawTextRaw(pDrac, posText, aCh);
 
-	Frog_RenderScreen(pDrac, pMaze->m_pScrCur, s_posScreen);
+	Frog_UpdateTransition(&pMaze->m_scrtr, dT);
+	Frog_RenderTransition(pDrac, &pMaze->m_scrtr, s_posScreen);
 
 	UpdateInput(pMaze, pInput);
 }

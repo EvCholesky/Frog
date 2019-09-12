@@ -27,6 +27,79 @@ struct FrFontVertexBuffer // tag = fvbuf
 FixAry<FrTexture, 100>	s_aryTex;
 FrFontVertexBuffer g_Fvbuf;
 
+inline s32	CSolveQuadratic(f32 gA, f32 gB, f32 gC, f32 * aGOutput)
+{
+	f32 gDiscriminant = gB*gB - 4.0f * gA * gC;
+	if (gDiscriminant < 0.0f) 
+		return 0;
+
+	f32 gRecip = 1.0f / (2.0f * gA);
+	f32 gSqrtDescriminant = Frog_GSqrt(gDiscriminant);
+	aGOutput[0] = (-gB + gSqrtDescriminant) * gRecip;
+	aGOutput[1] = (-gB - gSqrtDescriminant) * gRecip;
+	return gDiscriminant > 0.0000001f ? 2 : 1;
+}
+
+FROG_CALL f32 Frog_GSmooth(f32 gCurrent, f32 gTarget, const FrSmp * pSmp, f32 dT)
+{
+	// quadratic style smoother, incoming and outgoing tangents and dT define a curve. If the target is too large to hit with this curve
+	// we linearly step towards it with dGMax. If the target is closer we'll hit it sooner than dTMax
+
+	f32 dGMin = pSmp->m_dGMin;
+	f32 dGMax = pSmp->m_dGMax;
+	f32 dTMax = pSmp->m_dTMax;
+	FR_ASSERT((dGMax > 0) & (dGMin > 0) & (dTMax > 0), "expected positive smoothing params");
+
+	f32 gNegate = 1.0f;
+	f32 g = gTarget - gCurrent;
+	if (g < 0.0f)
+	{
+		g *= -1.0f;
+		gNegate = -1.0f;
+	}
+
+	if (g < dGMin * dT)
+	{
+		return gTarget;
+	}
+
+	f32 dG = 0.0f; 
+
+	// find the value of the curve after dTMax
+	f32 gCurve = (dGMin + dGMax) * 0.5f * dTMax;
+	if (g > gCurve)
+	{
+		// can't hit the target in dTMax, head towards it at dGMax
+		f32 dTMaxSlope = (g - gCurve) / dGMax;
+		dTMaxSlope = Frog_GMin(dTMaxSlope, dT);
+
+		if (dTMaxSlope < dT)
+			dT += 0.0f;
+		dG = dTMaxSlope * dGMax;
+		dT -= dTMaxSlope;
+	}
+
+	if (dT > 0.0f)
+	{
+		// take the indefinite integral of the line between our two slopes and set the constant term so 
+		//  it's zeros are at g, then solve for x so we can step forward dT
+
+		f32 gA = (dGMin - dGMax) / (2.0f * dTMax);
+		f32 gB = dGMax;
+		f32 gC = g - dG - gCurve;
+
+		f32 aX[2];
+		s32 cRoot = CSolveQuadratic(gA, gB, gC, aX);
+		FR_ASSERT((cRoot > 0) & (aX[0] >= 0.0f), "bad solve in gSmooth");
+
+		// our current t relative to the curve [0..dTMax] is aX[0], return aX[0] + dT;
+		f32 tNew = aX[0] + dT;
+		dG += gA * tNew * tNew + gB * tNew + gC;
+	}
+
+	return gCurrent + gNegate * dG;
+}
+
 inline FrShaderHandle ShhandFindUnused(FrShaderManager * pShman)
 {
 	FrShaderHandle iShad = 0;
@@ -691,7 +764,7 @@ FROG_CALL void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * 
 	CreateVerts(&pDrac->m_fontman, pDrac->m_pDras, &g_Fvbuf, pos, pCoz);
 }
 
-FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wch, const FrRect * pRect, FrColor colFg, FrColor colBg)
+FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wch, const FrRect * pRect, FrColor colFg, FrColor colBg, float rRGB)
 {
 	FrFontManager * pFontman = &pDrac->m_fontman;
 	FrDrawState * pDras = pDrac->m_pDras;
@@ -715,6 +788,10 @@ FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wch, const FrRect * pRec
 	f32 minY = pRect->m_posMin.m_y;
 	f32 maxX = pRect->m_posMax.m_x;
 	f32 maxY = pRect->m_posMax.m_y;
+
+	colvecBg.m_x *= rRGB;
+	colvecBg.m_y *= rRGB;
+	colvecBg.m_z *= rRGB;
 	colvecBg.m_w *= -1;
 	FillOutVert(minX, maxY,
 				pGlyph->m_uMin, pGlyph->m_vMax,
@@ -751,6 +828,9 @@ FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wch, const FrRect * pRec
 	*/
 
 	FrColorVec colvecFg = Frog_ColvecCreate(colFg);
+	colvecFg.m_x *= rRGB;
+	colvecFg.m_y *= rRGB;
+	colvecFg.m_z *= rRGB;
 	FillOutVert(left, top,
 				pGlyph->m_uMin, pGlyph->m_vMax,
 				&colvecFg,
@@ -773,13 +853,70 @@ FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wch, const FrRect * pRec
 
 }
 
+FROG_CALL void Frog_InitTransition(FrScreenTransition * pScrtr)
+{
+	pScrtr->m_pScrPrev = nullptr;
+	pScrtr->m_pScr = nullptr;
+	pScrtr->m_r = 0.0f;
+	pScrtr->m_scrtrk = SCRTRK_None;
+}
+
+FROG_CALL void Frog_SetTransition(FrScreenTransition * pScrtr, SCRTRK scrtrk, FrScreen * pScrPrev, FrScreen * pScrNext)
+{
+	FR_ASSERT(scrtrk != SCRTRK_None || pScrPrev == nullptr, "expected single screen for SCRTRK_None");
+	pScrtr->m_pScrPrev = pScrPrev;
+	pScrtr->m_pScr = pScrNext;
+	pScrtr->m_r = 0.0f;
+	pScrtr->m_scrtrk = scrtrk;
+}
+
+FROG_CALL void Frog_UpdateTransition(FrScreenTransition * pScrtr, f32 dT)
+{
+	static FrSmp s_smp = { 0.2f, 30.0f, 3.0f };
+	if (pScrtr->m_scrtrk != SCRTRK_None)
+	{
+		pScrtr->m_r = Frog_GSmooth(pScrtr->m_r, 1.0f, &s_smp, dT);
+		if (pScrtr->m_r >= 1.0f)
+		{
+			// BB - This seems like a dodgy way to clean this up
+			Frog_FreeScreen(pScrtr->m_pScrPrev);
+			
+			Frog_SetTransition(pScrtr, SCRTRK_None, nullptr, pScrtr->m_pScr);
+		}
+	}
+}
+
+FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrScreenTransition * pScrtr, FrVec2 pos)
+{
+	float rRgbNew = 1.0f;
+	FrVec2 posNew = pos;
+	if (pScrtr->m_scrtrk == SCRTRK_Translate)
+	{
+		f32 rSlide = Frog_GCurveS(pScrtr->m_r);
+		FrVec2 posPrev = Frog_Vec2MulAdd(&pos, &pScrtr->m_dPos, rSlide);
+
+		rRgbNew = Frog_GMin(pScrtr->m_r * 4.0f, 1.0f);
+		float rRgbPrev = 1.0f - (Frog_GMax(0.0f, pScrtr->m_r - 0.75f) * 4.0f);
+
+		Frog_RenderScreen(pDrac, pScrtr->m_pScrPrev, posPrev, rRgbPrev);
+		posNew = Frog_Vec2Sub(&posPrev, &pScrtr->m_dPos);
+	}
+
+	Frog_RenderScreen(pDrac, pScrtr->m_pScr, posNew, rRgbNew);
+}
+
 FROG_CALL FrScreen * Frog_AllocateScreen(int dX, int dY)
 {
+	static const float s_dXCharPixel = 30.0f;
+	static const float s_dYCharPixel = 30.0f;
+
 	size_t cBTile = sizeof(FrScreenTile) * dX * dY;
 	size_t cBTotal = sizeof(FrScreen) + cBTile; 
 	FrScreen * pScr = (FrScreen*)malloc(cBTotal);
 	pScr->m_dX = dX;
 	pScr->m_dY = dY;
+	pScr->m_dXCharPixel = s_dXCharPixel;
+	pScr->m_dYCharPixel = s_dYCharPixel;
 
 	FrScreenTile * aTile = (FrScreenTile *)(pScr + 1);
 	ZeroAB(aTile, cBTile);
@@ -793,27 +930,27 @@ FROG_CALL void Frog_FreeScreen(FrScreen * pScreen)
 	free(pScreen);
 }
 
-FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 posUL)
+FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 posUL, float rRGB)
 {
-	static const float s_dXChar = 20.0f;
-	static const float s_dYChar = 30.0f;
 	FrRect rect;
 	int dY = pScr->m_dY;
+	float dXCharPixel = pScr->m_dXCharPixel;
+	float dYCharPixel = pScr->m_dYCharPixel;
 
 	for (int y = 0; y < pScr->m_dY; ++y)
 	{
-		f32 yMax = posUL.m_y + (y * s_dYChar);
+		f32 yMax = posUL.m_y + (y * dYCharPixel);
 		rect.m_posMax.m_y = yMax;
-		rect.m_posMin.m_y = yMax - s_dYChar;
+		rect.m_posMin.m_y = yMax - dYCharPixel;
 
 		for (int x = 0; x < pScr->m_dX; ++x)
 		{
-			f32 xMin = posUL.m_x + (x * s_dXChar);
+			f32 xMin = posUL.m_x + (x * dXCharPixel);
 			rect.m_posMin.m_x = xMin;
-			rect.m_posMax.m_x = xMin + s_dXChar;
+			rect.m_posMax.m_x = xMin + dXCharPixel;
 
 			FrScreenTile * pTile = &pScr->m_aTile[x + (y * dY)];
-			Frog_DrawChar(pDrac, pTile->m_wch, &rect, pTile->m_colFg, pTile->m_colBg);
+			Frog_DrawChar(pDrac, pTile->m_wch, &rect, pTile->m_colFg, pTile->m_colBg, rRGB);
 		}
 	}
 }
