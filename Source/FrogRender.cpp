@@ -876,17 +876,10 @@ FROG_CALL void Frog_UpdateTransition(FrScreenTransition * pScrtr, f32 dT)
 	if (pScrtr->m_scrtrk != SCRTRK_None)
 	{
 		pScrtr->m_r = Frog_GSmooth(pScrtr->m_r, 1.0f, &s_smp, dT);
-		if (pScrtr->m_r >= 1.0f)
-		{
-			// BB - This seems like a dodgy way to clean this up
-			Frog_FreeScreen(pScrtr->m_pScrPrev);
-			
-			Frog_SetTransition(pScrtr, SCRTRK_None, nullptr, pScrtr->m_pScr);
-		}
 	}
 }
 
-FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrScreenTransition * pScrtr, FrVec2 pos)
+FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworld, FrScreenTransition * pScrtr, FrVec2 pos)
 {
 	float rRgbNew = 1.0f;
 	FrVec2 posNew = pos;
@@ -898,29 +891,43 @@ FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrScreenTransition *
 		rRgbNew = Frog_GMin(pScrtr->m_r * 4.0f, 1.0f);
 		float rRgbPrev = 1.0f - (Frog_GMax(0.0f, pScrtr->m_r - 0.75f) * 4.0f);
 
-		Frog_RenderScreen(pDrac, pScrtr->m_pScrPrev, posPrev, rRgbPrev);
+		Frog_RenderScreen(pDrac, pTworld, pScrtr->m_pScrPrev, posPrev, rRgbPrev);
 		posNew = Frog_Vec2Sub(&posPrev, &pScrtr->m_dPos);
 	}
 
-	Frog_RenderScreen(pDrac, pScrtr->m_pScr, posNew, rRgbNew);
+	Frog_RenderScreen(pDrac, pTworld, pScrtr->m_pScr, posNew, rRgbNew);
 }
 
-FROG_CALL FrScreen * Frog_AllocateScreen(int dX, int dY)
+FROG_CALL FrScreen * Frog_AllocateScreen(FrTileWorld * pTworld,  int dX, int dY)
 {
 	static const float s_dXCharPixel = 30.0f;
 	static const float s_dYCharPixel = 30.0f;
 
 	size_t cBTile = sizeof(FrScreenTile) * dX * dY;
-	size_t cBTotal = sizeof(FrScreen) + cBTile; 
+	size_t cBTentidCell = sizeof(Tentid) * dX * dY;
+	size_t cBTotal = sizeof(FrScreen) + cBTile * 2 + cBTentidCell; 
+
 	FrScreen * pScr = (FrScreen*)malloc(cBTotal);
 	pScr->m_dX = dX;
 	pScr->m_dY = dY;
 	pScr->m_dXCharPixel = s_dXCharPixel;
 	pScr->m_dYCharPixel = s_dYCharPixel;
+	pScr->m_nGen = pTworld->m_nGenScreen++;
 
-	FrScreenTile * aTile = (FrScreenTile *)(pScr + 1);
-	ZeroAB(aTile, cBTile);
-	pScr->m_aTile = aTile;
+	u8 * pB = (u8 *)(pScr + 1);
+	FrScreenTile * aTileEnv = (FrScreenTile *)pB;
+	pB += cBTile;
+	FrScreenTile * aTileCache = (FrScreenTile *)pB;
+	pB += cBTile;
+
+	ZeroAB(aTileEnv, cBTile);
+	ZeroAB(aTileCache, cBTile);
+	pScr->m_mpICellTileEnv = aTileEnv;
+	pScr->m_mpICellTileCache = aTileCache;
+
+	Tentid * aTentidCell = (Tentid *)pB;
+	ZeroAB(aTentidCell, cBTentidCell);
+	pScr->m_mpICellPTent = aTentidCell;
 
 	return pScr;
 }
@@ -930,7 +937,12 @@ FROG_CALL void Frog_FreeScreen(FrScreen * pScreen)
 	free(pScreen);
 }
 
-FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 posUL, float rRGB)
+inline int ITent(Tentid tentid)
+{
+	return tentid - 1; // adjust for null zero
+}
+
+FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrTileWorld * pTworld, FrScreen * pScr, FrVec2 posUL, float rRGB)
 {
 	FrRect rect;
 	int dY = pScr->m_dY;
@@ -949,8 +961,19 @@ FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 
 			rect.m_posMin.m_x = xMin;
 			rect.m_posMax.m_x = xMin + dXCharPixel;
 
-			FrScreenTile * pTile = &pScr->m_aTile[x + (y * dY)];
-			Frog_DrawChar(pDrac, pTile->m_wch, &rect, pTile->m_colFg, pTile->m_colBg, rRGB);
+			int iCell = x + (y * dY);
+			FrScreenTile * pTile = &pScr->m_mpICellTileEnv[iCell];
+			Tentid tentid = pScr->m_mpICellPTent[iCell];
+			if (tentid)
+			{
+				FrTileEntity * pTent = &pTworld->m_aTent[ITent(tentid)];
+				FrScreenTile * pTile = &pTworld->m_tmap.m_mpChTile[pTent->m_iTile];
+				Frog_DrawChar(pDrac, pTile->m_wch, &rect, pTile->m_colFg, pTile->m_colBg, rRGB);
+			}
+			else
+			{
+				Frog_DrawChar(pDrac, pTile->m_wch, &rect, pTile->m_colFg, pTile->m_colBg, rRGB);
+			}
 		}
 	}
 }
@@ -966,16 +989,126 @@ FROG_CALL void Frog_MapScreen(FrScreen * pScr, FrTileMap * pTmap, const char * p
 			u8 ch = pChzScreen[iTile];
 
 			FrScreenTile * pTile = &pTmap->m_mpChTile[ch];
-			pScr->m_aTile[iTileFlip] = *pTile;
+			pScr->m_mpICellTileEnv[iTileFlip] = *pTile;
 		}
 	}
 }
 
-FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg)
+FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg, u8 ftile)
 {
 	FrScreenTile * pTile = &pTmap->m_mpChTile[ch];
 	pTile->m_wch = wchOut;
 	pTile->m_colFg = colFg;
 	pTile->m_colBg = colBg;
+	pTile->m_ftile = ftile;
 }
+
+FROG_CALL u8 Frog_FtileFromCell(FrScreen * pScr, int xCell, int yCell)
+{
+	int iCell = xCell + yCell * pScr->m_dX;
+	return pScr->m_mpICellTileEnv[iCell].m_ftile;
+}
+
+FROG_CALL void Frog_InitTileWorld(FrTileWorld * pTworld)
+{
+	ZeroAB(pTworld->m_tmap.m_mpChTile, sizeof(pTworld->m_tmap.m_mpChTile));
+	ZeroAB(pTworld->m_aTent, sizeof(pTworld->m_aTent));
+
+	Tentid * pTentidMax = FR_PMAX(pTworld->m_aTentidFree);
+	s16 iTent = 0;
+	for (Tentid * pEntid = pTworld->m_aTentidFree; pEntid != pTentidMax; ++pEntid)
+	{
+		*pEntid = ++iTent; // NOTE: entity ids are 1 relative, zero == null
+	}
+
+	pTworld->m_cTentAllocated = 0;
+	pTworld->m_nGenScreen = 1;
+}
+
+#define DEBUG_ENTITY_ROSTER 1
+FROG_CALL Tentid Frog_TentidAllocate(FrTileWorld * pTworld)
+{
+	if (pTworld->m_cTentAllocated >= kCTentWorldMax)
+	{
+		return kTentidNil;
+	}
+
+	pTworld->m_cTentAllocated++;
+	Tentid tentid = pTworld->m_aTentidFree[kCTentWorldMax - pTworld->m_cTentAllocated];
+
+	FrTileEntity * pTent = &pTworld->m_aTent[ITent(tentid)];
+	pTent->m_iCellPrev = -1;
+	pTent->m_nGenScreen = -1;
+
+#if DEBUG_ENTITY_ROSTER
+	// make sure this entity is not listed twice in the roster
+	Tentid * pTentidMax = &pTworld->m_aTentidFree[kCTentWorldMax - pTworld->m_cTentAllocated];
+	for (Tentid * pEntid = pTworld->m_aTentidFree; pEntid != pTentidMax; ++pEntid)
+	{
+		FR_ASSERT(*pEntid != tentid, "entity id listed twice in the free entity list");
+	}
+#endif
+
+	return tentid;
+}
+
+FROG_CALL void Frog_FreeEntity(FrTileWorld * pTworld, Tentid tentid)
+{
+	if (FR_FVERIFY(pTworld->m_cTentAllocated > 0, "cannot free entity, no entities are allocated"))
+	{
+
+#if DEBUG_ENTITY_ROSTER
+		// make sure this entity is not already listed as freed
+		Tentid * pTentidMax = &pTworld->m_aTentidFree[kCTentWorldMax - pTworld->m_cTentAllocated];
+		for (Tentid * pEntid = pTworld->m_aTentidFree; pEntid != pTentidMax; ++pEntid)
+		{
+			FR_ASSERT(*pEntid != tentid, "trying to list freed entity id");
+		}
+#endif
+
+		pTworld->m_aTentidFree[kCTentWorldMax - pTworld->m_cTentAllocated] = tentid;
+		pTworld->m_cTentAllocated--;
+	}
+}
+
+FROG_CALL void Frog_RemoveEntity(FrTileWorld * pTworld, FrScreen * pScr, Tentid tentid)
+{
+	if (!FR_FVERIFY(tentid != kTentidNil, "bad tile entity id"))
+		return;
+
+	FrTileEntity * pTent = &pTworld->m_aTent[ITent(tentid)];
+
+	if (pTent->m_iCellPrev >= 0 && pTent->m_nGenScreen == pScr->m_nGen)
+	{
+		pScr->m_mpICellPTent[pTent->m_iCellPrev] = kTentidNil;
+	}
+
+}
+
+FROG_CALL void Frog_UpdateEntity(FrTileWorld * pTworld, FrScreen * pScr, Tentid tentid, int xCell, int yCell, u8 iTile)
+{
+	if (!FR_FVERIFY(tentid != kTentidNil, "bad tile entity id"))
+		return;
+
+	FrTileEntity * pTent = &pTworld->m_aTent[ITent(tentid)];
+
+	Frog_RemoveEntity(pTworld, pScr, tentid);
+
+	pTent->m_xCell = xCell;
+	pTent->m_yCell = yCell;
+	pTent->m_iTile = iTile;
+
+	int iCell = xCell + yCell * pScr->m_dX;
+	pTent->m_iCellPrev = iCell;
+	pTent->m_nGenScreen = pScr->m_nGen;
+
+	pTent->m_tentidNextCell = pScr->m_mpICellPTent[iCell];
+	pScr->m_mpICellPTent[iCell] = tentid;
+}
+
+void RenderEntities(FrTileWorld * pTworld, FrScreen * pScr)
+{
+}
+
+
 

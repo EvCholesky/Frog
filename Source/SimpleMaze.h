@@ -4,14 +4,14 @@
 
 typedef struct FrInput_t FrInput;
 
-typedef struct Maze_t // tag = maze
+typedef struct SimpleMaze_t // tag = maze
 {
-	FrTileMap			m_tmap;
+	FrTileWorld			m_tworld;
 	FrScreen *			m_pScrCur;
 	FrScreenTransition	m_scrtr;
 	int					m_xScr;
 	int					m_yScr;
-} Maze;
+} SimpleMaze;
 
-FROG_CALL void InitMaze(Maze * pMaze);
-FROG_CALL void UpdateMaze(Maze * pMaze, FrDrawContext * pDrac, FrInput * pInput, f32 dT);
+FROG_CALL void InitSimpleMaze(SimpleMaze * pMaze);
+FROG_CALL void UpdateSimpleMaze(SimpleMaze * pMaze, FrDrawContext * pDrac, FrInput * pInput, f32 dT);

@@ -370,12 +370,19 @@ FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wCh, const FrRect * pRec
 FROG_CALL void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * pCoz);
 
 
+typedef enum FTILE
+{
+	FTILE_None		= 0,
+	FTILE_Collide	= 1,
+} FTILE;
 
 typedef struct FrScreenTile_t // tag = tile
 {
 	u32				m_wch;
 	FrColor			m_colFg;
 	FrColor			m_colBg;
+	u8				m_ftile;
+
 } FrScreenTile;
 
 // Map from ascii to tile (w/ colors)
@@ -384,14 +391,34 @@ typedef struct FrTileMap_t // tag = tmap
 	FrScreenTile	m_mpChTile[255];
 } FrTileMap;
 
+typedef u16 Tentid;
+static Tentid kTentidNil = 0;
+enum { kCTentCellMax = 4 };	// number of tile entities that can be on the same cell
+
+typedef struct  FrTileEntity_t // tag = tent
+{
+	int				m_xCell;
+	int				m_yCell;
+	int				m_iCellPrev;		// where is this tile cached in the screen?
+	int				m_iTile;			// character used to map into tile registry
+	int				m_nGenScreen;
+	float			m_rTransition;
+
+	Tentid			m_tentidNextCell;	// entry in list of entities in this cell
+} FrTileEntity;
+
 typedef struct FrScreen_t // tag = scr
 {
-	int				m_dX;
-	int				m_dY;
+	int				m_dX;				// number of columns
+	int				m_dY;				// number of rows	
 	float			m_dXCharPixel;		// pixel width of characters
 	float			m_dYCharPixel;		// pixel width of characters
+	int				m_nGen;				// generation id used to safely check screen equality
 
-	FrScreenTile *	m_aTile;
+	FrScreenTile *	m_mpICellTileEnv;	// static environment tiles
+	FrScreenTile *	m_mpICellTileCache;	// cached tiles to render this frame
+	Tentid *		m_mpICellPTent;		// tile entites added to this screen
+
 	/*
 	u32 *			m_aWchBase;			// base wide-character grid
 	FrColor *		m_aColForeBase;		// base color grid
@@ -410,22 +437,41 @@ typedef struct FrScreenTransition_t // tag = scrtr
 {
 	FrScreen *		m_pScrPrev;
 	FrScreen *		m_pScr;
-	float			m_r;
+	float			m_r;			// percent complete
 	FrVec2			m_dPos;			// ending offset for previous screen
 	SCRTRK			m_scrtrk;
 } FrScreenTransition;
 
+enum { kCTentWorldMax = 1024 };	// maximum number of tile entities active in the world
+
+typedef struct FrTileWorld_t	// tag = tworld
+{
+	FrTileMap			m_tmap;
+	FrTileEntity		m_aTent[kCTentWorldMax];
+	Tentid				m_aTentidFree[kCTentWorldMax];
+	int					m_cTentAllocated;
+	int					m_nGenScreen;			// generation id for next screen created
+} FrTileWorld;
+
+FROG_CALL void Frog_InitTileWorld(FrTileWorld * pTworld);
+
 FROG_CALL void Frog_InitTransition(FrScreenTransition * pScrtr);
 FROG_CALL void Frog_SetTransition(FrScreenTransition * pScrtr, SCRTRK scrtrk, FrScreen * pScrPrev, FrScreen * pScrNext);
 FROG_CALL void Frog_UpdateTransition(FrScreenTransition * pScrtr, f32 dT);
-FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrScreenTransition * pScrtr, FrVec2 pos);
+FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworld, FrScreenTransition * pScrtr, FrVec2 pos);
 
-FROG_CALL FrScreen * Frog_AllocateScreen(int dX, int dY);
+FROG_CALL FrScreen * Frog_AllocateScreen(FrTileWorld * pTworld, int dX, int dY);
 FROG_CALL void Frog_FreeScreen(FrScreen * pScreen);
-FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrScreen * pScr, FrVec2 posUL, float rRGB);
+FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrTileWorld * pTworld, FrScreen * pScr, FrVec2 posUL, float rRGB);
 FROG_CALL void Frog_MapScreen(FrScreen * pScr, FrTileMap * pTmap, const char * pCozScreen);
 
-FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg);
+FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg, u8 ftile);
+FROG_CALL u8 Frog_FtileFromCell(FrScreen * pScreen, int xCell, int yCell);
+
+FROG_CALL Tentid Frog_TentidAllocate(FrTileWorld * pTworld);
+FROG_CALL void Frog_FreeEntity(FrTileWorld * pTworld, Tentid tentid);
+FROG_CALL void Frog_RemoveEntity(FrTileWorld * pTworld, FrScreen * pScr, Tentid tentid);
+FROG_CALL void Frog_UpdateEntity(FrTileWorld * pTworld, FrScreen * pScr, Tentid tentid, int xCell, int yCell, u8 iTile);
 
 
-
+inline bool FIsNull(Tentid tentid)				{ return tentid == kTentidNil; }

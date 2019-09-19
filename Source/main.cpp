@@ -3,7 +3,12 @@
 #include "FrogRender.h"
 #include "FrogPlatform.h"
 
+#define USE_ENTITIES 1
+#if USE_ENTITIES
+#include "EntityMaze.h"
+#else
 #include "SimpleMaze.h"
+#endif
 
 FrInput g_input;
 FrDrawContext g_drac;
@@ -35,15 +40,24 @@ int main(int cpChzArg, const char * apChzArg[])
 	s64 cTickNew;
 	s64 cTickPrev = Frog_CTickWallClock();
 
-	Maze maze;
-	InitMaze(&maze);
+#if USE_ENTITIES
+	EntityMaze maze;
+	InitEntityMaze(&maze);
+#else
+	SimpleMaze maze;
+	InitSimpleMaze(&maze);
+#endif
 
 	f32 dTPrev = g_plat.m_pltime.m_dTFrameTarget;
 	while (!Frog_FShouldWindowClose(&g_plat))
 	{
 		Frog_ClearScreen(&g_plat);
 
-		UpdateMaze(&maze, &g_drac, &g_input, dTPrev);
+#if USE_ENTITIES
+		UpdateEntityMaze(&maze, &g_drac, &g_input, dTPrev);
+#else
+		UpdateSimpleMaze(&maze, &g_drac, &g_input, dTPrev);
+#endif
 
 		Frog_FlushFontVerts(&g_drac);
 		Frog_SwapBuffers(&g_plat);
