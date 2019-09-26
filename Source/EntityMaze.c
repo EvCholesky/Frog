@@ -4,6 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+void OnEnterRoom(EntityMaze * pMaze, Room * pRoom);
+void OnExitRoom(EntityMaze * pMaze, Room * pRoom);
+void AddEntityUpdate(EntityMaze * pMaze, Entity * pEnt, EUPO eupo);
+void RemoveEntityUpdate(EntityMaze * pMaze, Entity * pEnt);
+
 typedef enum FDIR_tag
 {
 	FDIR_None	= 0x0,
@@ -37,6 +42,8 @@ static const int s_xStart = 0;
 static const int s_yStart = 0;
 static const int s_xEnd = 5;
 static const int s_yEnd = 5;
+static const int s_xScrLock = 3;
+static const int s_yScrLock = 4;
 
 static FDIR s_aFdir[] = 
 {
@@ -90,6 +97,20 @@ static const char * s_pChzRoomB =
 "W....WW....W" // 8
 "W..........W"
 "W..........W"
+"WWWWWWWWWWWW";
+
+static const char * s_pChzLocked =
+"WWWWWWWWWWWW" // 0
+"W..........W"
+"W..........W"
+"W..........W"
+"W..........W" // 4
+"W..........W"
+"W..........W"
+"W..WW.WWW..W"
+"W..W....W..W" // 8
+"W..W....W..W"
+"W..W....W..W"
 "WWWWWWWWWWWW";
 
 static const char * s_pChzRoomStart =
@@ -155,6 +176,10 @@ static FrScreen * PScreenCreate(EntityMaze * pMaze, int x, int y)
 	{
 		CopyAB(s_pChzRoomEnd, aCh, FR_DIM(aCh));
 	}
+	else if (x == s_xScrLock && y == s_yScrLock)
+	{
+		CopyAB(s_pChzLocked, aCh, FR_DIM(aCh));
+	}
 	else if ((x % 2) == 1 && (y % 2) == 0)
 	{
 		CopyAB(s_pChzRoomA, aCh, FR_DIM(aCh));
@@ -218,31 +243,39 @@ static FrScreen * PScreenCreate(EntityMaze * pMaze, int x, int y)
 	return pScr;
 }
 
-static void SetCurScreen(EntityMaze * pMaze, int xScrNew, int yScrNew)
+static void SetCurRoom(EntityMaze * pMaze, int xScrNew, int yScrNew)
 {
-	pMaze->m_pScrCur = PScreenCreate(pMaze, xScrNew, yScrNew);
+	int iRoom = xScrNew + yScrNew * kDXMaze;
+	Room * pRoom  = &pMaze->m_aRoom[iRoom];
+
+	pMaze->m_pRoomCur = pRoom;
 	pMaze->m_xScr = xScrNew;
 	pMaze->m_yScr = yScrNew;
 
-	Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_None, NULL, pMaze->m_pScrCur);
+	Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_None, NULL, pRoom->m_pScr);
+
+	OnEnterRoom(pMaze, pRoom);
 }
 
 static void TranslateCurScreen(EntityMaze * pMaze, int xScrNew, int yScrNew, FrVec2 dPosTransit)
 {
-	FrScreen * pScrPrev = pMaze->m_pScrCur;
+	Room * pRoomPrev = pMaze->m_pRoomCur;
 
-	int iScr = xScrNew + yScrNew * kDXMaze;
-	pMaze->m_pScrCur = pMaze->m_mpIScrPScr[iScr];
+	int iRoomNew = xScrNew + yScrNew * kDXMaze;
+	Room * pRoomNew  = &pMaze->m_aRoom[iRoomNew];
+
+	pMaze->m_pRoomCur = pRoomNew;
 	pMaze->m_xScr = xScrNew;
 	pMaze->m_yScr = yScrNew;
+	OnEnterRoom(pMaze, pRoomNew);
 
-	if (!pScrPrev)
+	if (!pRoomPrev)
 	{
-		Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_None, NULL, pMaze->m_pScrCur);
+		Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_None, NULL, pRoomNew->m_pScr);
 	}
 	else
 	{
-		Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_Translate, pScrPrev, pMaze->m_pScrCur);
+		Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_Translate, pRoomPrev->m_pScr, pRoomNew->m_pScr);
 		pMaze->m_scrtr.m_dPos = dPosTransit;
 	}
 }
@@ -255,15 +288,16 @@ bool FIsCellOpen(EntityMaze * pMaze, int xCellAvatar, int yCellAvatar, int dXScr
 		return true;
 	}
 
-	FrScreen * pScr = pMaze->m_pScrCur;
+	FrScreen * pScr = pMaze->m_pRoomCur->m_pScr;
 	FTILE ftile = Frog_FtileFromCell(pScr, xCellAvatar, yCellAvatar);
 	return (ftile & FTILE_Collide) == 0;
 }
 
 static void MoveAvatar(EntityMaze * pMaze, int dX, int dY)
 {
-	FrScreen * pScr = pMaze->m_pScrCur;
-	Entity * pEnt = &pMaze->m_aEnt[ENTID_Avatar];
+	Room * pRoom = pMaze->m_pRoomCur;
+	FrScreen * pScr = pRoom->m_pScr;
+	Entity * pEnt = pMaze->m_pEntAvatar;
 
 	int xNew = pEnt->m_x + dX;
 	int yNew = pEnt->m_y + dY;
@@ -313,14 +347,15 @@ static void MoveAvatar(EntityMaze * pMaze, int dX, int dY)
 
 	if (FIsCellOpen(pMaze, xNew, yNew, dXScreen, dYScreen))
 	{
+		Room * pRoomCur = pMaze->m_pRoomCur;
 		pEnt->m_x = xNew;
 		pEnt->m_y = yNew;
 
 		if (dXScreen != 0 || dYScreen != 0)
 		{
 			// remove the player from the screen we're leaving
-			Entity * pEntPlayer = &pMaze->m_aEnt[ENTID_Avatar];
-			Frog_RemoveEntity(&pMaze->m_tworld, pMaze->m_pScrCur, pEntPlayer->m_tentid);
+			Entity * pEntAvatar = pMaze->m_pEntAvatar;
+			Frog_RemoveEntity(&pMaze->m_tworld, pRoomCur->m_pScr, pEntAvatar->m_tentid);
 
 			TranslateCurScreen(
 				pMaze, 
@@ -331,18 +366,164 @@ static void MoveAvatar(EntityMaze * pMaze, int dX, int dY)
 	}
 }
 
-void InitEntity(FrTileWorld * pTworld, Entity * pEnt, int x, int y)
+void AddEntityToRoom(Room * pRoom, Entity * pEnt)
 {
-	pEnt->m_tentid = Frog_TentidAllocate(pTworld);
+	if (!FR_FVERIFY(pEnt->m_iRoom < 0, "Entity already in room") || 
+		!FR_FVERIFY(pRoom->m_cTentid < FR_DIM(pRoom->m_aTentid), "Too many entities in room"))
+		return;
+
+	pRoom->m_aTentid[pRoom->m_cTentid++] = pEnt->m_tentid;
+	pEnt->m_iRoom = pRoom->m_iRoom;
+}
+
+void RemoveEntityFromRoom(Room * pRoom, Entity * pEnt)
+{
+	if (!FR_FVERIFY(pEnt->m_iRoom != pRoom->m_iRoom, "Trying to remove entity from wrong room"))
+		return;
+
+	Tentid tentidEnt = pEnt->m_tentid;
+	for (int iTentid = 0; iTentid < pRoom->m_cTentid; ++iTentid)
+	{
+		if (pRoom->m_aTentid[iTentid] == tentidEnt)
+		{
+			pEnt->m_iRoom = -1;
+			--pRoom->m_cTentid;
+			pRoom->m_aTentid[iTentid] = pRoom->m_aTentid[pRoom->m_cTentid];
+			return;
+		}
+	}
+}
+
+void OnEnterRoom(EntityMaze * pMaze, Room * pRoom)
+{
+	// called when a room begins to transition in
+	for (int iTentid = 0; iTentid < pRoom->m_cTentid; ++iTentid)
+	{
+		int tentid = pRoom->m_aTentid[iTentid];
+		Entity * pEnt = &pMaze->m_mpTentidEnt[tentid];
+
+		AddEntityUpdate(pMaze, pEnt, EUPO_Items);
+	}
+}
+
+void OnExitRoom(EntityMaze * pMaze, Room * pRoom)
+{
+	// called when a room completes a transition out
+	for (int iTentid = 0; iTentid < pRoom->m_cTentid; ++iTentid)
+	{
+		Tentid tentid = pRoom->m_aTentid[iTentid];
+		Entity * pEnt = &pMaze->m_mpTentidEnt[tentid];
+
+		RemoveEntityUpdate(pMaze, pEnt);
+	}
+}
+
+Entity * PEntAllocate(EntityMaze * pMaze, ENTK entk, int x, int y, char iTile)
+{
+	Tentid tentid = Frog_TentidAllocate(&pMaze->m_tworld);
+	Entity * pEnt = &pMaze->m_mpTentidEnt[tentid];
+
+	pEnt->m_tentid = tentid;
+	pEnt->m_entk = entk;
+	pEnt->m_eupo = EUPO_Nil;
+	pEnt->m_ipEntUpdate = -1;
+	pEnt->m_iRoom = -1;
+	pEnt->m_iTile = iTile;
+
 	pEnt->m_x = x;
 	pEnt->m_y = y;
+
+	return pEnt;
+}
+
+void FreeEntity(EntityMaze * pMaze, Entity * pEnt)
+{
+	if (pEnt->m_tentid != kTentidNil)
+	{
+		Frog_FreeEntity(&pMaze->m_tworld, pEnt->m_tentid);
+		pEnt->m_tentid = kTentidNil;
+	}
+}
+
+void SortEntityUpdateList(EntityMaze * pMaze)
+{
+	if (pMaze->m_fUpdateIsDirty)
+		return;
+
+	pMaze->m_fUpdateIsDirty = false;
+
+	// radix sort our entity updates
+	int mpEupoCEnt[EUPO_Max] = {0};
+	Entity * apEntWork[kCTentWorldMax];
+
+	int cEntRemoved = 0;
+	Entity ** ppEntMax = &pMaze->m_apEntUpdate[pMaze->m_cpEntUpdate];
+	Entity ** ppEntWork = apEntWork;
+	for (Entity** ppEnt = pMaze->m_apEntUpdate; ppEnt != ppEntMax; ++ppEnt)
+	{
+		if (*ppEnt == NULL)
+		{
+			++cEntRemoved;
+			continue;
+		}
+
+		*ppEntWork++ = *ppEnt;
+		Entity * pEnt = *ppEnt;
+		++mpEupoCEnt[pEnt->m_eupo];
+	}
+
+	int mpEupoITentidMin[EUPO_Max];
+	int iTentid = 0;
+	for (int eupo = 0; eupo < EUPO_Max; ++eupo)
+	{
+		mpEupoITentidMin[eupo] = iTentid;
+		iTentid += mpEupoCEnt[eupo];
+	}
+	
+	pMaze->m_cpEntUpdate -= cEntRemoved;
+	FR_ASSERT(pMaze->m_cpEntUpdate == iTentid, "bad entity array calculations");
+
+	Entity ** ppEntWorkMax = &apEntWork[pMaze->m_cpEntUpdate];
+	for (Entity ** ppEntWork = apEntWork; ppEntWork != ppEntWorkMax; ++ppEntWork)
+	{
+		Entity * pEnt = *ppEntWork;
+		int iTentid = mpEupoITentidMin[pEnt->m_eupo]++;
+		
+		pEnt->m_ipEntUpdate = iTentid;
+		pMaze->m_apEntUpdate[iTentid] = pEnt;
+	}
+}
+
+void AddEntityUpdate(EntityMaze * pMaze, Entity * pEnt, EUPO eupo)
+{
+	if (!FR_FVERIFY(pMaze->m_cpEntUpdate < FR_DIM(pMaze->m_apEntUpdate), "too many active entities"))	
+		return;
+
+	if (!FR_FVERIFY(pEnt->m_eupo == EUPO_Nil && pEnt->m_ipEntUpdate < 0, "Entity is already registered for update"))
+		return;
+
+	pEnt->m_eupo = eupo;
+	pEnt->m_ipEntUpdate = pMaze->m_cpEntUpdate++;
+	pMaze->m_apEntUpdate[pEnt->m_ipEntUpdate] = pEnt;
+	pMaze->m_fUpdateIsDirty = true;
+}
+
+void RemoveEntityUpdate(EntityMaze * pMaze, Entity * pEnt)
+{
+	if (!FR_FVERIFY(pEnt->m_eupo != EUPO_Nil && pEnt->m_ipEntUpdate >= 0, "Entity is not registered for update"))
+		return;
+
+	pMaze->m_apEntUpdate[pEnt->m_ipEntUpdate] = NULL;
+	pEnt->m_ipEntUpdate = -1;
+	pEnt->m_eupo = EUPO_Nil;
+	pMaze->m_fUpdateIsDirty = true;
 }
 
 void InitEntityMaze(EntityMaze * pMaze)
 {
-	int cBScreenMap = sizeof(FrScreen *) * kDXMaze * kDYMaze;
-	pMaze->m_mpIScrPScr = (FrScreen **)malloc(cBScreenMap);
-	ZeroAB(pMaze->m_mpIScrPScr, cBScreenMap); 
+	int cBRoomMap = sizeof(Room) * kDXMaze * kDYMaze;
+	pMaze->m_aRoom = (Room *)malloc(cBRoomMap);
+	ZeroAB(pMaze->m_aRoom, cBRoomMap); 
 
 	Frog_InitTileWorld(&pMaze->m_tworld);
 
@@ -362,25 +543,35 @@ void InitEntityMaze(EntityMaze * pMaze)
 	Frog_SetTile(pTmap, 'E', 'E', colWallFg, colWallBg, FTILE_Collide);
 	Frog_SetTile(pTmap, '.', ' ', colGrassFg, colGrassBg, FTILE_None);
 	Frog_SetTile(pTmap, '_', ' ', colPathFg, colPathBg, FTILE_None);
-	Frog_SetTile(pTmap, 'C', 'C', colItemFg, colItemBg, FTILE_None);
+	Frog_SetTile(pTmap, 'C', 'o', colItemFg, colItemBg, FTILE_None);
 	Frog_SetTile(pTmap, '@', '@', colItemFg, colItemBg, FTILE_None);
 
 	pMaze->m_xScr = s_xStart;
 	pMaze->m_yScr = s_yStart;
+	pMaze->m_cpEntUpdate = 0;
+	pMaze->m_fUpdateIsDirty = false;
 
 	for (int yScr = 0; yScr < kDYMaze; ++yScr)
 	{
 		for (int xScr = 0; xScr < kDYMaze; ++xScr)
 		{
-			int iScr = xScr + yScr * kDXMaze;
-			pMaze->m_mpIScrPScr[iScr] = PScreenCreate(pMaze, xScr, yScr);
+			int iRoom = xScr + yScr * kDXMaze;
+			Room * pRoom = &pMaze->m_aRoom[iRoom];
+			pRoom->m_pScr = PScreenCreate(pMaze, xScr, yScr);
+			pRoom->m_pScr->m_nId = iRoom;
+			pRoom->m_cTentid = 0;
+			pRoom->m_iRoom = iRoom;
+
+			Entity * pEntCoin = PEntAllocate(pMaze, ENTK_Avatar, 7, 5, 'C');
+			AddEntityToRoom(pRoom, pEntCoin);
 		}
 	}
 
-	pMaze->m_pScrCur = NULL;
-	SetCurScreen(pMaze, pMaze->m_xScr, pMaze->m_yScr);
+	pMaze->m_pRoomCur = NULL;
+	SetCurRoom(pMaze, pMaze->m_xScr, pMaze->m_yScr);
 
-	InitEntity(&pMaze->m_tworld, &pMaze->m_aEnt[ENTID_Avatar], 4, 4);
+	pMaze->m_pEntAvatar = PEntAllocate(pMaze, ENTK_Avatar, 3, 3, '@');
+	AddEntityUpdate(pMaze, pMaze->m_pEntAvatar, EUPO_Avatar);
 }
 
 static void UpdateInput(EntityMaze * pMaze, FrInput * pInput)
@@ -408,7 +599,6 @@ static void UpdateInput(EntityMaze * pMaze, FrInput * pInput)
 void UpdateEntityMaze(EntityMaze * pMaze, FrDrawContext * pDrac, FrInput * pInput, f32 dT)
 {
 	FrVec2 s_posScreen = Frog_Vec2Create(10, 400);
-	//static const char * s_pChzQuickFox = "TheQuickBrownFoxJumpsOverTheLazyDog";
 	FrVec2 posText = Frog_Vec2Create(20.0f, 20.0f);
 
 	char aCh[32];
@@ -416,9 +606,19 @@ void UpdateEntityMaze(EntityMaze * pMaze, FrDrawContext * pDrac, FrInput * pInpu
 	Frog_DrawTextRaw(pDrac, posText, aCh);
 
 	FrScreenTransition * pScrtr = &pMaze->m_scrtr;
+	Room * pRoomPrev = NULL;
+	if (pScrtr->m_scrtrk != SCRTRK_None && pScrtr->m_pScrPrev)
+	{
+		pRoomPrev = &pMaze->m_aRoom[pScrtr->m_pScrPrev->m_nId];
+	}
+
 	Frog_UpdateTransition(&pMaze->m_scrtr, dT);
 	if (pScrtr->m_r >= 1.0f)
 	{
+		if (pRoomPrev)
+		{
+			OnExitRoom(pMaze, pRoomPrev);
+		}
 		Frog_SetTransition(pScrtr, SCRTRK_None, NULL, pScrtr->m_pScr);
 	}
 
@@ -426,6 +626,16 @@ void UpdateEntityMaze(EntityMaze * pMaze, FrDrawContext * pDrac, FrInput * pInpu
 
 	UpdateInput(pMaze, pInput);
 
-	Entity * pEntPlayer = &pMaze->m_aEnt[ENTID_Avatar];
-	Frog_UpdateEntity(&pMaze->m_tworld, pMaze->m_pScrCur, pEntPlayer->m_tentid, pEntPlayer->m_x, pEntPlayer->m_y, '@');
+	SortEntityUpdateList(pMaze);
+
+	Room * pRoomCur = pMaze->m_pRoomCur;
+	Entity ** ppEntMax = &pMaze->m_apEntUpdate[pMaze->m_cpEntUpdate];
+	for (Entity** ppEnt = pMaze->m_apEntUpdate; ppEnt != ppEntMax; ++ppEnt)
+	{
+		Entity * pEnt = *ppEnt;
+		if (!pEnt)
+			continue;
+
+		Frog_UpdateEntity(&pMaze->m_tworld, pRoomCur->m_pScr, pEnt->m_tentid, pEnt->m_x, pEnt->m_y, pEnt->m_iTile);
+	}
 }

@@ -391,8 +391,8 @@ typedef struct FrTileMap_t // tag = tmap
 	FrScreenTile	m_mpChTile[255];
 } FrTileMap;
 
-typedef u16 Tentid;
-static Tentid kTentidNil = 0;
+typedef s32 Tentid;
+static Tentid kTentidNil = -1;
 enum { kCTentCellMax = 4 };	// number of tile entities that can be on the same cell
 
 typedef struct  FrTileEntity_t // tag = tent
@@ -414,6 +414,7 @@ typedef struct FrScreen_t // tag = scr
 	float			m_dXCharPixel;		// pixel width of characters
 	float			m_dYCharPixel;		// pixel width of characters
 	int				m_nGen;				// generation id used to safely check screen equality
+	int				m_nId;				// user id
 
 	FrScreenTile *	m_mpICellTileEnv;	// static environment tiles
 	FrScreenTile *	m_mpICellTileCache;	// cached tiles to render this frame
@@ -465,7 +466,7 @@ FROG_CALL void Frog_FreeScreen(FrScreen * pScreen);
 FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrTileWorld * pTworld, FrScreen * pScr, FrVec2 posUL, float rRGB);
 FROG_CALL void Frog_MapScreen(FrScreen * pScr, FrTileMap * pTmap, const char * pCozScreen);
 
-FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg, u8 ftile);
+FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char iTile, u32 wchOut, FrColor colFg,  FrColor colBg, u8 ftile);
 FROG_CALL u8 Frog_FtileFromCell(FrScreen * pScreen, int xCell, int yCell);
 
 FROG_CALL Tentid Frog_TentidAllocate(FrTileWorld * pTworld);
