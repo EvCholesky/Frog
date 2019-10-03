@@ -7,8 +7,8 @@ typedef struct FrInput_t FrInput;
 typedef struct SimpleMaze_t // tag = maze
 {
 	FrTileWorld			m_tworld;
-	FrScreen *			m_pScrCur;
-	FrScreenTransition	m_scrtr;
+	FrRoom *			m_pRoomCur;
+	FrRoomTransition	m_roomt;
 	int					m_xScr;
 	int					m_yScr;
 } SimpleMaze;

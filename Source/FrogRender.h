@@ -391,88 +391,129 @@ typedef struct FrTileMap_t // tag = tmap
 	FrScreenTile	m_mpChTile[255];
 } FrTileMap;
 
-typedef s32 Tentid;
-static Tentid kTentidNil = -1;
-enum { kCTentCellMax = 4 };	// number of tile entities that can be on the same cell
-
-typedef struct  FrTileEntity_t // tag = tent
+typedef enum ENTID_t
 {
-	int				m_xCell;
-	int				m_yCell;
-	int				m_iCellPrev;		// where is this tile cached in the screen?
+	ENTID_Nil = -1,
+} ENTID;
+
+typedef enum ROOMID_t
+{
+	ROOMID_Nil = -1,
+} ROOMID;
+
+enum { kCEntCellMax = 4 };			// number of tile entities that can be on the same cell
+enum { kCEntWorldMax = 1024 };		// maximum number of tile entities active in the world
+enum { kCEntRoomMax = 120 };		// maximum number of entities per room
+enum { kCRoomWorldMax = 64 };		// maximum number of rooms in a world
+
+enum // Entity UPdate Order
+{
+	EUPO_Max = 32,
+	EUPO_Min = 0,
+	EUPO_Nil = -1
+};
+
+typedef struct  FrEntity_t // tag = ent
+{
+	int				m_iCellPrev;		// where is this tile cached in the room?
 	int				m_iTile;			// character used to map into tile registry
-	int				m_nGenScreen;
+	int				m_nGenRoom;
+	int				m_ipEntUpdate;		// index of this entity in the room update array
 	float			m_rTransition;
 
-	Tentid			m_tentidNextCell;	// entry in list of entities in this cell
-} FrTileEntity;
+	int				m_eupo;				// entity update priority, lower updates earlier
+	ROOMID			m_roomidUpdate;
+	ENTID			m_entidNextCell;	// entry in list of entities in this cell
+} FrEntity;
 
-typedef struct FrScreen_t // tag = scr
+typedef struct FrRoom_t // tag = room
 {
 	int				m_dX;				// number of columns
 	int				m_dY;				// number of rows	
 	float			m_dXCharPixel;		// pixel width of characters
 	float			m_dYCharPixel;		// pixel width of characters
-	int				m_nGen;				// generation id used to safely check screen equality
-	int				m_nId;				// user id
+	int				m_nGenRoom;			// generation id used to safely check room equality
+	int				m_roomid;			// user id
+	int				m_cpEnt;			// number of entities parented to this room
+	bool			m_fEntityListDirty;	// need to update dirty array
 
 	FrScreenTile *	m_mpICellTileEnv;	// static environment tiles
 	FrScreenTile *	m_mpICellTileCache;	// cached tiles to render this frame
-	Tentid *		m_mpICellPTent;		// tile entites added to this screen
+	ENTID *			m_mpICellEntid;	// tile entites added to this room
 
+	FrEntity *		m_apEnt[kCEntRoomMax];
 	/*
 	u32 *			m_aWchBase;			// base wide-character grid
 	FrColor *		m_aColForeBase;		// base color grid
 	FrColor *		m_aColBackBase;		// base color grid
 	*/
-} FrScreen;
+} FrRoom;
 
-typedef enum SCRTRK_t // SCReen TRansition Kind
+typedef enum ROOMTK_t // ROOM Transition Kind
 {
-	SCRTRK_None,
-	SCRTRK_Translate,
-	SCRTRK_Fade,
-} SCRTRK;
+	ROOMTK_None,
+	ROOMTK_Translate,
+	ROOMTK_Fade,
+} ROOMTK;
 
-typedef struct FrScreenTransition_t // tag = scrtr
+typedef struct FrRoomTransition_t // tag = roomt
 {
-	FrScreen *		m_pScrPrev;
-	FrScreen *		m_pScr;
-	float			m_r;			// percent complete
-	FrVec2			m_dPos;			// ending offset for previous screen
-	SCRTRK			m_scrtrk;
-} FrScreenTransition;
-
-enum { kCTentWorldMax = 1024 };	// maximum number of tile entities active in the world
+	FrRoom *			m_pRoomPrev;
+	FrRoom *			m_pRoom;
+	float				m_r;			// percent complete
+	FrVec2				m_dPos;			// ending offset for previous screen
+	ROOMTK				m_roomtk;
+} FrRoomTransition;
 
 typedef struct FrTileWorld_t	// tag = tworld
 {
 	FrTileMap			m_tmap;
-	FrTileEntity		m_aTent[kCTentWorldMax];
-	Tentid				m_aTentidFree[kCTentWorldMax];
-	int					m_cTentAllocated;
-	int					m_nGenScreen;			// generation id for next screen created
+	FrEntity			m_aEnt[kCEntWorldMax];
+	ENTID				m_aEntidFree[kCEntWorldMax];
+
+	FrRoom				m_aRoom[kCRoomWorldMax];
+	ROOMID				m_aRoomidFree[kCRoomWorldMax];
+
+	int					m_cEntAllocated;
+	int					m_cRoomAllocated;
+	int					m_nGenRoom;			// generation id for next screen created
 } FrTileWorld;
+
+typedef struct FrCellContents_t // tag = cellc
+{
+	FrScreenTile		m_tile;
+	ENTID *				m_aEntid;
+	int					m_cEntid;
+	int					m_cEntidMax;
+
+} FrCellContents;
 
 FROG_CALL void Frog_InitTileWorld(FrTileWorld * pTworld);
 
-FROG_CALL void Frog_InitTransition(FrScreenTransition * pScrtr);
-FROG_CALL void Frog_SetTransition(FrScreenTransition * pScrtr, SCRTRK scrtrk, FrScreen * pScrPrev, FrScreen * pScrNext);
-FROG_CALL void Frog_UpdateTransition(FrScreenTransition * pScrtr, f32 dT);
-FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworld, FrScreenTransition * pScrtr, FrVec2 pos);
+FROG_CALL void Frog_InitTransition(FrRoomTransition * pRoomt);
+FROG_CALL void Frog_SetTransition(FrRoomTransition * pRoomt, ROOMTK roomtk, FrRoom * pFroomPrev, FrRoom * pFroomNext);
+FROG_CALL void Frog_UpdateTransition(FrRoomTransition * pRoomt, f32 dT);
+FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt, FrVec2 pos);
 
-FROG_CALL FrScreen * Frog_AllocateScreen(FrTileWorld * pTworld, int dX, int dY);
-FROG_CALL void Frog_FreeScreen(FrScreen * pScreen);
-FROG_CALL void Frog_RenderScreen(FrDrawContext * pDrac, FrTileWorld * pTworld, FrScreen * pScr, FrVec2 posUL, float rRGB);
-FROG_CALL void Frog_MapScreen(FrScreen * pScr, FrTileMap * pTmap, const char * pCozScreen);
+FROG_CALL FrRoom * Frog_PRoomAllocate(FrTileWorld * pTworld, int dXCell, int dYCell);
+FROG_CALL FrRoom * Frog_PRoom(FrTileWorld * pTworld, ROOMID roomid);
+FROG_CALL void Frog_FreeRoom(FrTileWorld * pTworld, FrRoom * pRoom);
+FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoom * pFroom, FrVec2 posUL, float rRGB);
+FROG_CALL void Frog_SetRoomTiles(FrRoom * pFroom, FrTileMap * pTmap, const char * pCozScreen);
+FROG_CALL void Frog_SortEntityUpdateList(FrRoom * pRoom);
 
 FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char iTile, u32 wchOut, FrColor colFg,  FrColor colBg, u8 ftile);
-FROG_CALL u8 Frog_FtileFromCell(FrScreen * pScreen, int xCell, int yCell);
+FROG_CALL u8 Frog_FtileFromCell(FrRoom * pFroom, int xCell, int yCell);
 
-FROG_CALL Tentid Frog_TentidAllocate(FrTileWorld * pTworld);
-FROG_CALL void Frog_FreeEntity(FrTileWorld * pTworld, Tentid tentid);
-FROG_CALL void Frog_RemoveEntity(FrTileWorld * pTworld, FrScreen * pScr, Tentid tentid);
-FROG_CALL void Frog_UpdateEntity(FrTileWorld * pTworld, FrScreen * pScr, Tentid tentid, int xCell, int yCell, u8 iTile);
+FROG_CALL ENTID Frog_EntidAllocate(FrTileWorld * pTworld);
+FROG_CALL FrEntity * Frog_PEnt(FrTileWorld * pTworld, ENTID entid);
+FROG_CALL ENTID Frog_EntidFromEnt(FrTileWorld * pTworld, FrEntity * pEnt);
+FROG_CALL void Frog_FreeEntity(FrTileWorld * pTworld, ENTID entid);
+FROG_CALL void Frog_UpdateEntity(FrTileWorld * pTworld, FrRoom * pFroom, ENTID entid, int xCell, int yCell, u8 iTile);
+FROG_CALL void Frog_AddToRoom(FrRoom * pRoom, FrEntity * pEnt, int eupo);
+FROG_CALL void Frog_RemoveFromRoom(FrRoom * pRoom, FrEntity * pEnt);
 
+FROG_CALL void Frog_InitCellContents(ENTID * aEntid, int cEntidMax, FrCellContents * pCellc);
+FROG_CALL void Frog_FindCellContents(FrTileWorld * pTworld, FrRoom * pFroom, int xCell, int yCell, FrCellContents * pCellc);
 
-inline bool FIsNull(Tentid tentid)				{ return tentid == kTentidNil; }
+inline bool FIsNull(ENTID entid)				{ return entid == ENTID_Nil; }

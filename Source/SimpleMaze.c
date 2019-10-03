@@ -142,7 +142,7 @@ static inline void WriteScreenTileHorizLine(char * aCh, int x, int y, char ch, i
 	}
 }
 
-static FrScreen * PScreenCreate(SimpleMaze * pMaze, int x, int y)
+static FrRoom * PRoomCreate(SimpleMaze * pMaze, int x, int y)
 {
 	char aCh[kDXTile * kDYTile];
 
@@ -216,36 +216,36 @@ static FrScreen * PScreenCreate(SimpleMaze * pMaze, int x, int y)
 	aCh[15] = 'L';
 	aCh[26] = 'L';
 	aCh[27] = 'L';
-	FrScreen * pScr = Frog_AllocateScreen(&pMaze->m_tworld, kDXTile, kDYTile);
-	Frog_MapScreen(pScr, &pMaze->m_tworld.m_tmap, aCh);
-	return pScr;
+	FrRoom * pRoom = Frog_PRoomAllocate(&pMaze->m_tworld, kDXTile, kDYTile);
+	Frog_SetRoomTiles(pRoom, &pMaze->m_tworld.m_tmap, aCh);
+	return pRoom;
 }
 
 static void SetCurScreen(SimpleMaze * pMaze, int xNew, int yNew)
 {
-	pMaze->m_pScrCur = PScreenCreate(pMaze, xNew, yNew);
+	pMaze->m_pRoomCur = PRoomCreate(pMaze, xNew, yNew);
 	pMaze->m_xScr = xNew;
 	pMaze->m_yScr = yNew;
 
-	Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_None, NULL, pMaze->m_pScrCur);
+	Frog_SetTransition(&pMaze->m_roomt, ROOMTK_None, NULL, pMaze->m_pRoomCur);
 }
 
 static void TranslateCurScreen(SimpleMaze * pMaze, int xNew, int yNew, FrVec2 dPosTransit)
 {
-	FrScreen * pScrPrev = pMaze->m_pScrCur;
+	FrRoom * pRoomPrev = pMaze->m_pRoomCur;
 
-	pMaze->m_pScrCur = PScreenCreate(pMaze, xNew, yNew);
+	pMaze->m_pRoomCur = PRoomCreate(pMaze, xNew, yNew);
 	pMaze->m_xScr = xNew;
 	pMaze->m_yScr = yNew;
 
-	if (!pScrPrev)
+	if (!pRoomPrev)
 	{
-		Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_None, NULL, pMaze->m_pScrCur);
+		Frog_SetTransition(&pMaze->m_roomt, ROOMTK_None, NULL, pMaze->m_pRoomCur);
 	}
 	else
 	{
-		Frog_SetTransition(&pMaze->m_scrtr, SCRTRK_Translate, pScrPrev, pMaze->m_pScrCur);
-		pMaze->m_scrtr.m_dPos = dPosTransit;
+		Frog_SetTransition(&pMaze->m_roomt, ROOMTK_Translate, pRoomPrev, pMaze->m_pRoomCur);
+		pMaze->m_roomt.m_dPos = dPosTransit;
 	}
 }
 
@@ -278,7 +278,7 @@ void InitSimpleMaze(SimpleMaze * pMaze)
 	pMaze->m_xScr = s_xStart;
 	pMaze->m_yScr = s_yStart;
 
-	pMaze->m_pScrCur = NULL;
+	pMaze->m_pRoomCur = NULL;
 	SetCurScreen(pMaze, pMaze->m_xScr, pMaze->m_yScr);
 }
 
@@ -286,7 +286,7 @@ static void UpdateInput(SimpleMaze * pMaze, FrInput * pInput)
 {
 	Frog_PollInput(pInput);
 
-	if (pMaze->m_scrtr.m_scrtrk != SCRTRK_None)
+	if (pMaze->m_roomt.m_roomtk != ROOMTK_None)
 		return;
 
 	FrInputEventIterator inevit = Frog_Inevit(pInput->m_pInevfifo);
@@ -296,9 +296,9 @@ static void UpdateInput(SimpleMaze * pMaze, FrInput * pInput)
 		if (pInev->m_edges != EDGES_Press)
 			continue;
 
-		FrScreen * pScrCur = pMaze->m_pScrCur;
-		f32 dXScreen = (f32)pScrCur->m_dX * pScrCur->m_dXCharPixel;
-		f32 dYScreen = (f32)pScrCur->m_dY * pScrCur->m_dYCharPixel;
+		FrRoom * pRoomCur = pMaze->m_pRoomCur;
+		f32 dXScreen = (f32)pRoomCur->m_dX * pRoomCur->m_dXCharPixel;
+		f32 dYScreen = (f32)pRoomCur->m_dY * pRoomCur->m_dYCharPixel;
 
 		FDIR fdir = FdirFromXyScreen(pMaze->m_xScr, pMaze->m_yScr);
 		switch (pInev->m_keycode)
@@ -342,15 +342,15 @@ void UpdateSimpleMaze(SimpleMaze * pMaze, FrDrawContext * pDrac, FrInput * pInpu
 	sprintf_s(aCh, FR_DIM(aCh), "(%d, %d)", pMaze->m_xScr, pMaze->m_yScr);
 	Frog_DrawTextRaw(pDrac, posText, aCh);
 
-	FrScreenTransition * pScrtr = &pMaze->m_scrtr;
-	Frog_UpdateTransition(pScrtr, dT);
-	if (pScrtr->m_r >= 1.0f)
+	FrRoomTransition * pRoomt = &pMaze->m_roomt;
+	Frog_UpdateTransition(pRoomt, dT);
+	if (pRoomt->m_r >= 1.0f)
 	{
-		Frog_FreeScreen(pScrtr->m_pScrPrev);
-		Frog_SetTransition(pScrtr, SCRTRK_None, NULL, pScrtr->m_pScr);
+		Frog_FreeRoom(&pMaze->m_tworld, pRoomt->m_pRoomPrev);
+		Frog_SetTransition(pRoomt, ROOMTK_None, NULL, pRoomt->m_pRoom);
 	}
 
-	Frog_RenderTransition(pDrac, &pMaze->m_tworld, &pMaze->m_scrtr, s_posScreen);
+	Frog_RenderTransition(pDrac, &pMaze->m_tworld, &pMaze->m_roomt, s_posScreen);
 
 	UpdateInput(pMaze, pInput);
 }
