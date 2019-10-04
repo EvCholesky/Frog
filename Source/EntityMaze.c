@@ -45,8 +45,8 @@ static const int s_xEnd = 5;
 static const int s_yEnd = 5;
 static const int s_xScrLock = 3;
 static const int s_yScrLock = 4;
-static const int s_xScrKey = 3;
-static const int s_yScrKey = 3;
+static const int s_xScrKey = 2;
+static const int s_yScrKey = 4;
 
 static FDIR s_aFdir[] = 
 {
@@ -306,20 +306,24 @@ void HandleBumpAvatar(EntityMaze * pMaze, GameEntity * pGentSrc, ENTID entidDest
 	{
 	case ENTK_Key:
 		++pMaze->m_aCIik[IIK_Key];
+		Frog_PostNote(&pMaze->m_noteq, NOTEK_Normal, "Collected Key");	
 		FreeEntity(pMaze, pGentDest);
 		break;
 	case ENTK_Coin:
 		++pMaze->m_aCIik[IIK_Coin];
+		Frog_PostNote(&pMaze->m_noteq, NOTEK_Normal, "Collected Coin");	
 		FreeEntity(pMaze, pGentDest);
 		break;
 	case ENTK_Lock:
 		if (pMaze->m_aCIik[IIK_Key] > 0)
 		{
 			pMaze->m_aCIik[IIK_Key];
+			Frog_PostNote(&pMaze->m_noteq, NOTEK_Normal, "Unlocked Door");	
 			FreeEntity(pMaze, pGentDest);
 		}
 		else
 		{
+			Frog_PostNote(&pMaze->m_noteq, NOTEK_Normal, "Door is Locked");	
 			*pFAllowMove = false;
 		}
 		break;
@@ -428,6 +432,8 @@ static void MoveAvatar(EntityMaze * pMaze, int dX, int dY)
 			Frog_RemoveFromRoom(pGroomCur->m_pRoom, pEntAvatar);
 			Frog_AddToRoom(pGroomNext->m_pRoom, pEntAvatar, EUPO_Avatar);
 
+
+			Frog_PostNote(&pMaze->m_noteq, NOTEK_LowPriority, "Entered room (%d, %d)", xRoomNew, yRoomNew);	
 			TranslateCurScreen(
 				pMaze, 
 				pMaze->m_xScr + dXScreen, 
@@ -482,6 +488,7 @@ void InitEntityMaze(EntityMaze * pMaze)
 	ZeroAB(pMaze->m_aGroom, sizeof(pMaze->m_aGroom)); 
 	ZeroAB(pMaze->m_aCIik, sizeof(pMaze->m_aCIik));
 
+	Frog_InitNoteQueue(&pMaze->m_noteq, 16);
 	Frog_InitTileWorld(&pMaze->m_tworld);
 
 	FrColor colWallFg = Frog_ColCreate(0xFFa5c9c3);
@@ -592,16 +599,14 @@ void UpdateRoomEntities(EntityMaze * pMaze, FrRoom * pRoom)
 void UpdateEntityMaze(EntityMaze * pMaze, FrDrawContext * pDrac, FrInput * pInput, f32 dT)
 {
 	FrVec2 s_posScreen = Frog_Vec2Create(10, 400);
-	FrVec2 posText = Frog_Vec2Create(20.0f, 20.0f);
+	FrVec2 posText = Frog_Vec2Create(10.0f, 300.0f);
+	FrVec2 posNoteQueue = Frog_Vec2Create(10.0f, 250.0f);
 
 	char aCh[32];
-	sprintf_s(aCh, FR_DIM(aCh), "(%d, %d)", pMaze->m_xScr, pMaze->m_yScr);
-	Frog_DrawTextRaw(pDrac, posText, aCh);
-
-	posText = Frog_Vec2Create(20.0f, 200.0f);
-
 	sprintf_s(aCh, FR_DIM(aCh), "$%d, %d keys", pMaze->m_aCIik[IIK_Coin], pMaze->m_aCIik[IIK_Key]);
 	Frog_DrawTextRaw(pDrac, posText, aCh);
+
+	Frog_RenderNoteQueue(pDrac, &pMaze->m_noteq, posNoteQueue, dT);
 
 	FrRoomTransition * pRoomt = &pMaze->m_roomt;
 	GameRoom * pGroomPrev = NULL;

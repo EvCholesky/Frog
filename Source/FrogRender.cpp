@@ -6,6 +6,9 @@
 #include "GlWrapper.h"
 #include "SpriteShaders.inl"
 #include "stb_image.h"
+
+#include <cstdarg>
+#include <float.h>
 #include <stdlib.h>
 
 static const int kChMaxDrawText = 1024;
@@ -757,11 +760,106 @@ void Frog_FlushFontVerts(FrDrawContext * pDrac)
 	pFvbuf->m_cFvert = 0;
 }	
 
+
 FROG_CALL void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * pCoz)
 {
 	// draw characters to the right. pos is the left side baseline
 
 	CreateVerts(&pDrac->m_fontman, pDrac->m_pDras, &g_Fvbuf, pos, pCoz);
+}
+
+FrVec2 DXDYExtentsFromAWch(FrDrawContext * pDrac, const char * pCoz)
+{
+	FrFontManager * pFontman = &pDrac->m_fontman;
+	auto fontk = pDrac->m_pDras->m_fontd.m_fontk;
+	FrFontGlyphFile * pGlyphf = pFontman->m_aFont[fontk].m_pGlyphf;
+
+	FrVec2 posCursor = Frog_Vec2Create(0.0f, 0.0f);
+	float yMin = FLT_MAX;
+	float yMax = 0; 
+
+	FrDrawState * pDras = pDrac->m_pDras;
+	float rXY = pDras->m_fontd.m_gCharSize;
+
+	const char * pCozIt = pCoz;
+	while (*pCozIt != 0)
+	{
+		size_t cBCodepoint = CBCodepoint(pCozIt);
+		u32 wch = NCodepoint(pCozIt, cBCodepoint);
+		pCozIt += cBCodepoint;
+
+		FrFontGlyph * pGlyph = PGlyphFind(pGlyphf, wch);
+
+		float xRight = posCursor.m_x;
+		if (pGlyph)
+		{
+			float yBottom	= posCursor.m_y + pGlyph->m_yOffset * rXY;
+			float yTop		= yBottom + pGlyph->m_dYPixels * rXY;
+
+			yMin = frMin(yMin, yBottom);
+			yMax = frMax(yMax, yTop);
+
+			float xLeft		= posCursor.m_x + pGlyph->m_xOffset * rXY;
+			xRight	= xLeft + pGlyph->m_dXPixels * rXY;
+		}
+
+		if (*pCozIt == 0)
+		{
+			return Frog_Vec2Create(xRight, yMax - yMin);
+		}
+
+		u32 wchNext = NCodepoint(pCozIt, CBCodepoint(pCozIt));
+
+		f32 kerningAdvance = DXFindKerning(
+							&pFontman->m_aFont[fontk],
+							pGlyph->m_iDxKerningMin,
+							pGlyph->m_iDxKerningMax,
+							wchNext);
+		
+		posCursor.m_x += (pGlyph->m_dXKerningDefault + kerningAdvance) * rXY;
+	}
+
+	return Frog_Vec2Create(0.0f, 0.0f);
+}
+
+
+FROG_CALL void Frog_DrawTextAligned(FrDrawContext * pDrac, FrVec2 pos, const char * pCoz)
+{
+
+	FrDrawState * pDras = pDrac->m_pDras;
+	// BB - could mix extents calculation with vertex creation
+
+	FrVec2 vecDxDy = Frog_Vec2Create(0.0f, 0.0f);
+	ALIGNK alignkX = pDras->m_fontd.m_alignkX;
+	ALIGNK alignkY = pDras->m_fontd.m_alignkY;
+	if (alignkX != ALIGNK_Left || alignkY != ALIGNK_Bottom)
+	{
+		// Don't need to calculate extents if we're x=ALIGNK_Left, y=ALIGNK_Bottom
+		vecDxDy = DXDYExtentsFromAWch(pDrac, pCoz);
+	}
+
+	float x;
+	switch (alignkX)
+	{
+		case ALIGNK_Left:	x = pos.m_x;						break;
+		case ALIGNK_Center:	x = pos.m_x - vecDxDy.m_x * 0.5f;	break;
+		case ALIGNK_Right:	x = pos.m_x - vecDxDy.m_x;			break;
+		default: FR_ASSERT(false, "unknown ALIGNK");
+	}
+
+	float y;
+	switch (alignkY)
+	{
+		case ALIGNK_Top:	y = pos.m_y - vecDxDy.m_y;			break;
+		case ALIGNK_Center:	y = pos.m_y - vecDxDy.m_y * 0.5f;	break;
+		case ALIGNK_Bottom:	y = pos.m_y;						break;
+		default: FR_ASSERT(false, "unknown ALIGNK");
+	}
+
+	// draw characters to the right. pos is the left side baseline
+
+	FrVec2 posCursor = Frog_Vec2Create(x, y);
+	Frog_DrawTextRaw(pDrac, posCursor, pCoz);
 }
 
 FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wch, const FrRect * pRect, FrColor colFg, FrColor colBg, float rRGB)
@@ -1269,5 +1367,104 @@ void RenderEntities(FrTileWorld * pTworld, FrRoom * pRoom)
 {
 }
 
+FROG_CALL void Frog_InitNoteQueue(FrNoteQueue * pNoteq, int cNoteMax)
+{
+	pNoteq->m_cNoteMax = cNoteMax;
+	pNoteq->m_aNote = (FrNote *)malloc(sizeof(FrNote) * cNoteMax);
+	pNoteq->m_iNoteLatest = -1;
+
+	FrNote * pNoteMax = &pNoteq->m_aNote[cNoteMax];
+	for (FrNote * pNote = pNoteq->m_aNote; pNote != pNoteMax; ++pNote)
+	{
+		pNote->m_aCh[0] = '\0';
+		pNote->m_notek = NOTEK_Nil;
+	}
+}
+
+FROG_CALL void Frog_FreeNoteQueue(FrNoteQueue * pNoteq, int cNoteMax)
+{
+	if (pNoteq->m_aNote)
+	{
+		pNoteq->m_aNote = nullptr;
+	}
+
+	pNoteq->m_cNoteMax = 0;
+}
+
+FROG_CALL void Frog_RenderNoteQueue(FrDrawContext * pDrac, FrNoteQueue * pNoteq, FrVec2 posTopLeft, float dT)
+{
+	struct NoteConfig
+	{
+		float		m_dY;
+		float		m_gCharSize;
+		float		m_tBeforeFade;
+		FrColor		m_col;
+	} s_mpNotekCfg[] = 
+	{
+		{ 17.0f, 17.0f, 5.0f, Frog_ColFromRGB(128, 128, 128)},		//NOTEK_LowPriority,
+		{ 22.0f, 22.0f, 7.0f, Frog_ColFromRGB(200, 200, 200)},		//NOTEK_Normal,
+		{ 20.0f, 20.0f, 5.0f, Frog_ColFromRGB(200, 200, 200)}, 		//NOTEK_Bold,
+	};
+
+	static_assert(FR_DIM(s_mpNotekCfg) == NOTEK_Max, "missing notek config");
+
+	int iNote = pNoteq->m_iNoteLatest;
+	if (iNote < 0)
+		return;
+
+	FrFontData * pFontd = &pDrac->m_pDras->m_fontd;
+	float gCharSizePrev = pFontd->m_gCharSize;
+	FrColor colPrev = pFontd->m_colMain;
+	ALIGNK alignkYPrev = pFontd->m_alignkY;
+	pFontd->m_alignkY = ALIGNK_Center;
+
+	FrVec2 pos = posTopLeft;
+	int cNoteDrawn = 0;
+
+	static const float s_dYSpacer = 2.0f;
+	while (cNoteDrawn++ < pNoteq->m_cNoteMax)
+	{
+		FrNote * pNote = &pNoteq->m_aNote[iNote];
+		if (pNote->m_notek == NOTEK_Nil)
+			break;
+
+		struct NoteConfig * pCfg = &s_mpNotekCfg[pNote->m_notek];
+		pFontd->m_gCharSize = pCfg->m_gCharSize;
+
+		pNote->m_t += dT;
+		static const float s_tFade = 0.5f;
+		float rFade = frClamp((pNote->m_t - pCfg->m_tBeforeFade) / s_tFade, 0.0f, 1.0f);
+
+		FrColor col = pCfg->m_col;
+		col.m_a = (u8)((float)col.m_a * (1.0f - rFade));
+		pFontd->m_colMain = col;
+
+		pos.m_y -= pCfg->m_dY * 0.5f;
+		Frog_DrawTextAligned(pDrac, pos, pNote->m_aCh);
+		pos.m_y -= pCfg->m_dY * 0.5f + s_dYSpacer;
+
+		iNote = (iNote + pNoteq->m_cNoteMax - 1) % pNoteq->m_cNoteMax;
+	}
+
+	pFontd->m_colMain = colPrev;
+	pFontd->m_gCharSize = gCharSizePrev;
+	pFontd->m_alignkY = alignkYPrev;
+}
+
+FROG_CALL void Frog_PostNote(FrNoteQueue * pNoteq, NOTEK notek, const char * pChzFormat, ...)
+{
+	if (pNoteq->m_cNoteMax <= 0)
+		return;
+
+	pNoteq->m_iNoteLatest = (++pNoteq->m_iNoteLatest) % pNoteq->m_cNoteMax;
+	FrNote * pNote = &pNoteq->m_aNote[pNoteq->m_iNoteLatest];
+	pNote->m_notek = notek;
+	pNote->m_t = 0.0f;
+
+	va_list ap;
+	va_start(ap, pChzFormat);
+	vsprintf_s(pNote->m_aCh, sizeof(pNote->m_aCh), pChzFormat, ap);
+	va_end(ap);
+}
 
 

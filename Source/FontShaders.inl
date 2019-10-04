@@ -47,5 +47,5 @@ const char* g_fontMainFragment = "												\n"
 	" 				smoothstep(-0.5f, 0.5f, (texture2D(s_glyphTexture, clampMinMax(minMaxUV, gl_TexCoord[0].xy + vec2(-dudx, dvdy) )).g - 0.5f) * rF);		\n"
 	"alpha *= 0.25;																\n"
 	"alpha += -clamp(color.a, -1, 0);											\n"
-	"gl_FragColor = vec4(color.rgb, alpha);										\n"
+	"gl_FragColor = vec4(color.rgb, alpha * abs(color.a));						\n"
 "}																				\n";

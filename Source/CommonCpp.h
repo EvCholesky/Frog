@@ -4,6 +4,7 @@
 
 template <typename T> T frMin(T a, T b)						{ return a < b ? a : b; }
 template <typename T> T frMax(T a, T b)						{ return a > b ? a : b; }
+template <typename T> T frClamp(T a, T tMin, T tMax)		{ return frMax(tMin, frMin(a, tMax)); }
 template <typename T> T frSwap(T & a, T & b)				{ T temp = a; a = b; b = temp; }
 
 

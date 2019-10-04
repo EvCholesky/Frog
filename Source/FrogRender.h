@@ -488,6 +488,31 @@ typedef struct FrCellContents_t // tag = cellc
 
 } FrCellContents;
 
+typedef enum NOTEK_t
+{
+	NOTEK_LowPriority,
+	NOTEK_Normal,
+	NOTEK_Bold,
+
+	NOTEK_Max,
+	NOTEK_Min = 0,
+	NOTEK_Nil = -1,
+} NOTEK;
+
+typedef struct FrNote_t // tag = noteq
+{
+	NOTEK				m_notek;
+	float				m_t;			// time since this was shown
+	char				m_aCh[120];
+} FrNote;
+
+typedef struct FrNoteQueue_t // tag = noteq
+{
+	int					m_iNoteLatest;
+	int					m_cNoteMax;
+	FrNote * 			m_aNote;
+} FrNoteQueue;
+
 FROG_CALL void Frog_InitTileWorld(FrTileWorld * pTworld);
 
 FROG_CALL void Frog_InitTransition(FrRoomTransition * pRoomt);
@@ -515,5 +540,10 @@ FROG_CALL void Frog_RemoveFromRoom(FrRoom * pRoom, FrEntity * pEnt);
 
 FROG_CALL void Frog_InitCellContents(ENTID * aEntid, int cEntidMax, FrCellContents * pCellc);
 FROG_CALL void Frog_FindCellContents(FrTileWorld * pTworld, FrRoom * pFroom, int xCell, int yCell, FrCellContents * pCellc);
+
+FROG_CALL void Frog_InitNoteQueue(FrNoteQueue * pNoteq, int cNoteMax);
+FROG_CALL void Frog_FreeNoteQueue(FrNoteQueue * pNoteq, int cNoteMax);
+FROG_CALL void Frog_RenderNoteQueue(FrDrawContext * pDrac, FrNoteQueue * pNoteq, FrVec2 posTopLeft, float dT);
+FROG_CALL void Frog_PostNote(FrNoteQueue * pNoteq, NOTEK notek, const char * pChzFormat, ...);
 
 inline bool FIsNull(ENTID entid)				{ return entid == ENTID_Nil; }

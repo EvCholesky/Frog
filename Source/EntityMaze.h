@@ -31,7 +31,7 @@ typedef enum EUPO_t
 	
 } EUPO;
 
-typedef struct GameEntity_t // tag = ent
+typedef struct GameEntity_t // tag = gent
 {
 	ENTK				m_entk;
 	ENTID				m_entid;				// tile entity id
@@ -53,6 +53,7 @@ typedef enum IIK_t // Inventory Item Kind
 typedef struct EntityMaze_t // tag = maze
 {
 	FrTileWorld			m_tworld;
+	FrNoteQueue			m_noteq;
 
 	GameEntity			m_mpEntidEnt[kCEntWorldMax];
 	GameEntity *		m_pGentAvatar;
