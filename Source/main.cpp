@@ -2,10 +2,16 @@
 #include "FrogInput.h"
 #include "FrogRender.h"
 #include "FrogPlatform.h"
+#include "stdlib.h"
 
+#define USE_WORLD_MAZE 1
 #define USE_ENTITIES 1
-#if USE_ENTITIES
+
+#if USE_WORLD_MAZE
+#include "WorldMaze.h"
+#elif USE_ENTITIES
 #include "EntityMaze.h"
+#include "EntityMaze.c"
 #else
 #include "SimpleMaze.h"
 #endif
@@ -15,14 +21,15 @@ FrDrawContext g_drac;
 static const int s_dXWindow = 1200;
 static const int s_dYWindow = 800;
 
-
-
 int main(int cpChzArg, const char * apChzArg[])
 {
 	static const int s_nHzTarget = 60;
-
 	if (!Frog_FTryInitPlatform(&g_plat, s_nHzTarget))
 		return 0;
+
+#if USE_WORLD_MAZE
+	FTryDumpRoomFile("worldDefTest.inl");
+#endif
 
 	if (!Frog_FTryCreateWindow(&g_plat, s_dXWindow, s_dYWindow, "Frog"))
 		return 0;
@@ -40,7 +47,10 @@ int main(int cpChzArg, const char * apChzArg[])
 	s64 cTickNew;
 	s64 cTickPrev = Frog_CTickWallClock();
 
-#if USE_ENTITIES
+#if USE_WORLD_MAZE
+	World maze;
+	InitWorldMaze(&maze);
+#elif USE_ENTITIES
 	EntityMaze maze;
 	InitEntityMaze(&maze);
 #else
@@ -53,7 +63,9 @@ int main(int cpChzArg, const char * apChzArg[])
 	{
 		Frog_ClearScreen(&g_plat);
 
-#if USE_ENTITIES
+#if USE_WORLD_MAZE 
+		UpdateWorldMaze(&maze, &g_drac, &g_input, dTPrev);
+#elif USE_ENTITIES
 		UpdateEntityMaze(&maze, &g_drac, &g_input, dTPrev);
 #else
 		UpdateSimpleMaze(&maze, &g_drac, &g_input, dTPrev);
@@ -68,7 +80,6 @@ int main(int cpChzArg, const char * apChzArg[])
 		cTickNew = Frog_CTickWallClock();
 		dTPrev = DTElapsed(cTickPrev, cTickNew, g_plat.m_pltime.m_rTickToSecond);
 		cTickPrev = cTickNew;
-
 	}
 
 	Frog_ShutdownPlatform(&g_plat);

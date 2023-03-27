@@ -13,6 +13,29 @@
 
 static const int kChMaxDrawText = 1024;
 
+FROG_CALL const char * PChzFromFTile(FTILE ftile)
+{
+	static const char * s_mpFTilePChz[] =
+	{
+		"Collide",
+		"Test",
+	};
+	FR_CASSERT((0x1 << FR_DIM(s_mpFTilePChz)) -1 == FTILE_All, "missing FTILE string");
+	if (ftile == FTILE_None)
+		return "None";
+
+	for (int iFTile = 0; iFTile < FR_DIM(s_mpFTilePChz); ++iFTile) 
+	{
+		if ((ftile & (0x1 << iFTile)) != 0)
+		{
+			FR_ASSERT(ftile == (0x1 << iFTile), "single flag expected in ftile parameter");
+			return s_mpFTilePChz[iFTile];
+		}
+	}
+
+	return "Unknown";
+}
+
 struct FrFontVertex // tag = fvert
 {
 	f32			m_x, m_y;
@@ -999,7 +1022,7 @@ FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworl
 FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoom * pRoom, FrVec2 posUL, float rRGB)
 {
 	FrRect rect;
-	int dY = pRoom->m_dY;
+	int dX = pRoom->m_dX;
 	float dXCharPixel = pRoom->m_dXCharPixel;
 	float dYCharPixel = pRoom->m_dYCharPixel;
 
@@ -1015,7 +1038,7 @@ FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrR
 			rect.m_posMin.m_x = xMin;
 			rect.m_posMax.m_x = xMin + dXCharPixel;
 
-			int iCell = x + (y * dY);
+			int iCell = x + (y * dX);
 			FrScreenTile * pTile = &pRoom->m_mpICellTileEnv[iCell];
 			ENTID entid = pRoom->m_mpICellEntid[iCell];
 			if (entid != ENTID_Nil)
@@ -1068,6 +1091,9 @@ FROG_CALL void Frog_InitCellContents(ENTID * aEntid, int cEntidMax, FrCellConten
 
 FROG_CALL void Frog_FindCellContents(FrTileWorld * pTworld, FrRoom * pRoom, int xCell, int yCell, FrCellContents * pCellc)
 {
+	if (xCell < 0 || xCell >= pRoom->m_dX || yCell < 0 || yCell >= pRoom->m_dY) 
+		return;
+
 	int iCell = xCell + yCell * pRoom->m_dX;
 	pCellc->m_tile = pRoom->m_mpICellTileEnv[iCell];
 
@@ -1203,8 +1229,8 @@ FROG_CALL FrRoom * Frog_PRoomAllocate(FrTileWorld * pTworld, int dXCell, int dYC
 	if (roomid == ROOMID_Nil)
 		return nullptr;
 
-	static const float s_dXCharPixel = 30.0f;
-	static const float s_dYCharPixel = 30.0f;
+	static const float s_dXCharPixel = 32.0f;
+	static const float s_dYCharPixel = 32.0f;
 
 	FrRoom * pRoom = &pTworld->m_aRoom[roomid];
 	pRoom->m_dX = dXCell;

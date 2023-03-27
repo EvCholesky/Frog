@@ -2,6 +2,9 @@
 
 #include "FrogString.h"
 #include <ctype.h>
+#include <cstdarg>
+#include <stdio.h>
+#include <string.h>
 
 
 /* By Paul Hsieh (C) 2004, 2005.  Covered under the Paul Hsieh derivative 
@@ -147,3 +150,79 @@ u32 Frog_NSuperFastHashLower (char * pB, size_t cB)
 }
 
 
+void Freb_init(FrEditBuffer * pFreb, char * pChMin, char * pChMax)
+{
+	pFreb->m_pChzMin = pChMin;
+	pFreb->m_pChzMax = pChMax;
+
+	pFreb->m_pChzAppend = pChMin;
+	Freb_Clear(pFreb);
+}
+
+void Freb_Clear(FrEditBuffer * pFreb)
+{
+	pFreb->m_pChzAppend = pFreb->m_pChzMin;
+	if (pFreb->m_pChzMin != pFreb->m_pChzMax)
+	{
+		pFreb->m_pChzMin[0] = '\0';
+	}
+}
+
+void Freb_AppendCh(FrEditBuffer * pFreb, const char * pChz, size_t cB)
+{
+	size_t cBAvail = pFreb->m_pChzMax - pFreb->m_pChzAppend;
+
+	if (cB < cBAvail)
+	{
+		// expects pChz[cB] is the null terminator
+
+		memcpy(pFreb->m_pChzAppend, pChz, cB);
+		pFreb->m_pChzAppend += cB - 1;
+	}
+	else if (cBAvail > 1)
+	{
+		size_t cBWrite = cBAvail-1;
+		memcpy(pFreb->m_pChzAppend, pChz, cBWrite);
+		pFreb->m_pChzAppend[cBWrite] = '\0';
+		pFreb->m_pChzAppend += cBWrite;
+	}
+}
+
+void Freb_AppendChz(FrEditBuffer * pFreb, const char * pChz)
+{
+	char * pChzDest = pFreb->m_pChzAppend;
+	char * pChzDestEnd = pFreb->m_pChzMax;
+	if (pChzDest == pChzDestEnd)
+		return;
+
+	for ( ; (*pChz != '\0') & ((pChzDest+1) != pChzDestEnd); ++pChz, ++pChzDest)
+	{
+		*pChzDest = *pChz;
+	}
+
+	pFreb->m_pChzAppend = pChzDest;
+	*pChzDest = '\0';
+}
+
+void Freb_AppendChzWithPad(FrEditBuffer * pFreb, const char * pChz, char ch, size_t cChPad)
+{
+
+}
+
+void Freb_Printf(FrEditBuffer * pFreb, const char * pChzFormat, ...)
+{
+	size_t cBAvail = pFreb->m_pChzMax - pFreb->m_pChzAppend;
+
+	va_list ap;
+	va_start(ap, pChzFormat);
+	int cCh = vsprintf_s(pFreb->m_pChzAppend, cBAvail, pChzFormat, ap);
+	if (cCh > 0)
+	{
+		pFreb->m_pChzAppend += cCh;
+	}
+}
+
+size_t Freb_CCh(FrEditBuffer * pFreb)
+{
+	return pFreb->m_pChzAppend - pFreb->m_pChzMin;
+}

@@ -374,7 +374,12 @@ typedef enum FTILE
 {
 	FTILE_None		= 0,
 	FTILE_Collide	= 1,
+	FTILE_Test		= 2,
+
+	FTILE_All		= 3,
 } FTILE;
+
+FROG_CALL const char * PChzFromFTile(FTILE ftile);
 
 typedef struct FrScreenTile_t // tag = tile
 {

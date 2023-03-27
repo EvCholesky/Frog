@@ -294,7 +294,7 @@ bool FIsCellOpen(EntityMaze * pMaze, int xCellAvatar, int yCellAvatar, int dXScr
 	}
 
 	FrRoom * pRoom = pMaze->m_pGroomCur->m_pRoom;
-	FTILE ftile = Frog_FtileFromCell(pRoom, xCellAvatar, yCellAvatar);
+	FTILE ftile = (FTILE)Frog_FtileFromCell(pRoom, xCellAvatar, yCellAvatar);
 	return (ftile & FTILE_Collide) == 0;
 }
 
@@ -347,16 +347,27 @@ bool FTryMoveEntity(EntityMaze * pMaze, GameEntity * pGent, int xCellNew, int yC
 		case ENTK_Avatar:
 			HandleBumpAvatar(pMaze, pGent, *pEntidDest, &fAllowMove);
 			break;
+		case ENTK_Monster:
+			{
+				GameEntity * pGentDest = &pMaze->m_mpEntidEnt[*pEntidDest];
+				if (pGentDest->m_entk == ENTK_Avatar)
+				{
+					if (pMaze->m_aCIik[IIK_Coin])
+					{
+						pMaze->m_aCIik[IIK_Coin] = 0;
+						Frog_PostNote(&pMaze->m_noteq, NOTEK_Normal, "Monster stole coins");	
+					}
+				}
+			} break;
 		}
 	}
 	return fAllowMove;
 }
 
-static void MoveAvatar(EntityMaze * pMaze, int dX, int dY)
+static void MoveAvatar(EntityMaze * pMaze, GameEntity * pGent, int dX, int dY)
 {
 	GameRoom * pGroom = pMaze->m_pGroomCur;
 	FrRoom * pRoom = pGroom->m_pRoom;
-	GameEntity * pGent = pMaze->m_pGentAvatar;
 
 	int xNew = pGent->m_x + dX;
 	int yNew = pGent->m_y + dY;
@@ -413,7 +424,7 @@ static void MoveAvatar(EntityMaze * pMaze, int dX, int dY)
 		pGroomNext  = &pMaze->m_aGroom[roomidNext];
 	}
 
-	if (FTryMoveEntity(pMaze, pMaze->m_pGentAvatar, xNew, yNew, pGroomPrev, pGroomNext))
+	if (FTryMoveEntity(pMaze, pGent, xNew, yNew, pGroomPrev, pGroomNext))
 	{
 		GameRoom * pGroomCur = pMaze->m_pGroomCur;
 		pGent->m_x = xNew;
@@ -422,8 +433,8 @@ static void MoveAvatar(EntityMaze * pMaze, int dX, int dY)
 		if (dXScreen != 0 || dYScreen != 0)
 		{
 			// remove the player from the screen we're leaving
-			GameEntity * pGentAvatar = pMaze->m_pGentAvatar;
-			FrEntity * pEntAvatar = Frog_PEnt(&pMaze->m_tworld, pGentAvatar->m_entid);
+			//GameEntity * pGentAvatar = pMaze->m_pGentAvatar;
+			FrEntity * pEntAvatar = Frog_PEnt(&pMaze->m_tworld, pGent->m_entid);
 
 			int xRoomNew = pMaze->m_xScr + dXScreen;
 			int yRoomNew = pMaze->m_yScr + dYScreen;
@@ -443,15 +454,15 @@ static void MoveAvatar(EntityMaze * pMaze, int dX, int dY)
 	}
 }
 
-void OnEnterRoom(EntityMaze * pMaze, GameRoom * pGroom)
+static void OnEnterRoom(EntityMaze * pMaze, GameRoom * pGroom)
 {
 }
 
-void OnExitRoom(EntityMaze * pMaze, GameRoom * pGroom)
+static void OnExitRoom(EntityMaze * pMaze, GameRoom * pGroom)
 {
 }
 
-GameEntity * PGentAllocate(EntityMaze * pMaze, ENTK entk, int x, int y, char iTile)
+static GameEntity * PGentAllocate(EntityMaze * pMaze, ENTK entk, int x, int y, char iTile)
 {
 	ENTID entid = Frog_EntidAllocate(&pMaze->m_tworld);
 	GameEntity * pGent = &pMaze->m_mpEntidEnt[entid];
@@ -466,7 +477,7 @@ GameEntity * PGentAllocate(EntityMaze * pMaze, ENTK entk, int x, int y, char iTi
 	return pGent;
 }
 
-void FreeEntity(EntityMaze * pMaze, GameEntity * pGent)
+static void FreeEntity(EntityMaze * pMaze, GameEntity * pGent)
 {
 	if (pGent->m_entid != ENTID_Nil)
 	{
@@ -499,6 +510,7 @@ void InitEntityMaze(EntityMaze * pMaze)
 	FrColor colItemBg = Frog_ColCreate(0xFF383e26); //#383e26
 	FrColor colPathFg = Frog_ColCreate(0xFF267043); //#437026
 	FrColor colPathBg = Frog_ColCreate(0xFF52afbf); //#bfaf52
+	FrColor colMonstFg = Frog_ColCreate(0xFFa4d8FF);
 
 	FrTileMap * pTmap = &pMaze->m_tworld.m_tmap;
 	//Frog_SetTile(&pMaze->m_tmap, 'W', L'▓', colWallFg, colWallBg);
@@ -508,9 +520,10 @@ void InitEntityMaze(EntityMaze * pMaze)
 	Frog_SetTile(pTmap, '.', ' ', colGrassFg, colGrassBg, FTILE_None);
 	Frog_SetTile(pTmap, '_', ' ', colPathFg, colPathBg, FTILE_None);
 	Frog_SetTile(pTmap, 'C', 'o', colItemFg, colItemBg, FTILE_None);
-	Frog_SetTile(pTmap, '#', '#', colItemFg, colItemBg, FTILE_None);
+	Frog_SetTile(pTmap, '#', '#', colItemFg, colItemBg, FTILE_None);	// BB - should be using collid
 	Frog_SetTile(pTmap, 'K', 'K', colItemFg, colItemBg, FTILE_None);
 	Frog_SetTile(pTmap, '@', '@', colItemFg, colItemBg, FTILE_None);
+	Frog_SetTile(pTmap, '*', '*', colMonstFg, colItemBg, FTILE_Collide);
 
 	pMaze->m_xScr = s_xStart;
 	pMaze->m_yScr = s_yStart;
@@ -523,7 +536,7 @@ void InitEntityMaze(EntityMaze * pMaze)
 			FrRoom * pRoom = PRoomCreate(pMaze, xScr, yScr);
 			
 			int xyRoom = xScr + yScr * kDXMaze;
-			pMaze->m_mpXyRoomid[xyRoom] = pRoom->m_roomid;
+			pMaze->m_mpXyRoomid[xyRoom] = (ROOMID)pRoom->m_roomid;
 
 			GameRoom * pGroom = &pMaze->m_aGroom[pRoom->m_roomid];
 			pGroom->m_pRoom = pRoom;
@@ -531,6 +544,9 @@ void InitEntityMaze(EntityMaze * pMaze)
 
 			GameEntity * pGentCoin = PGentAllocate(pMaze, ENTK_Coin, 7, 5, 'C');
 			Frog_AddToRoom(pRoom, Frog_PEnt(pTworld, pGentCoin->m_entid), EUPO_Item);
+
+			GameEntity * pGentMonst = PGentAllocate(pMaze, ENTK_Monster, 2, 2, '*');
+			Frog_AddToRoom(pRoom, Frog_PEnt(pTworld, pGentMonst->m_entid), EUPO_Monster);
 
 			if ((xScr & 0x1) == 0)
 			{
@@ -572,17 +588,24 @@ static void UpdateInput(EntityMaze * pMaze, FrInput * pInput)
 
 		switch (pInev->m_keycode)
 		{
-		case KEYCODE_ArrowUp:		MoveAvatar(pMaze, 0, 1);	break;
-		case KEYCODE_ArrowDown:		MoveAvatar(pMaze, 0, -1);	break;
-		case KEYCODE_ArrowLeft:		MoveAvatar(pMaze, -1, 0);	break;
-		case KEYCODE_ArrowRight:	MoveAvatar(pMaze, 1, 0);	break;
+		case KEYCODE_ArrowUp:		MoveAvatar(pMaze, pMaze->m_pGentAvatar, 0, 1);	break;
+		case KEYCODE_ArrowDown:		MoveAvatar(pMaze, pMaze->m_pGentAvatar, 0, -1);	break;
+		case KEYCODE_ArrowLeft:		MoveAvatar(pMaze, pMaze->m_pGentAvatar, -1, 0);	break;
+		case KEYCODE_ArrowRight:	MoveAvatar(pMaze, pMaze->m_pGentAvatar, 1, 0);	break;
 		}
 	}
 	Frog_ClearInputEvents(pInput->m_pInevfifo);
 }
 
-void UpdateRoomEntities(EntityMaze * pMaze, FrRoom * pRoom)
+void UpdateRoomEntities(EntityMaze * pMaze, FrRoom * pRoom, float dT)
 {
+	static float s_tTotal = 0.0f;
+	float tPrev = s_tTotal;
+	s_tTotal += dT;
+
+	static const float s_dTMove = 0.8f;
+	bool fShouldMove = (int)(tPrev / s_dTMove) != (int)(s_tTotal / s_dTMove);
+
 	FrEntity ** ppEntMax = &pRoom->m_apEnt[pRoom->m_cpEnt];
 	for (FrEntity ** ppEnt = pRoom->m_apEnt; ppEnt != ppEntMax; ++ppEnt)
 	{
@@ -592,6 +615,36 @@ void UpdateRoomEntities(EntityMaze * pMaze, FrRoom * pRoom)
 
 		ENTID entid = Frog_EntidFromEnt(&pMaze->m_tworld, pEnt);
 		GameEntity * pGent = &pMaze->m_mpEntidEnt[entid];
+
+		switch (pGent->m_entk)
+		{
+		case ENTK_Monster:
+			{
+				if (fShouldMove)
+				{
+					GameEntity * pGentAvatar = pMaze->m_pGentAvatar;
+					int dX = pGentAvatar->m_x - pGent->m_x;
+					int dY = pGentAvatar->m_y - pGent->m_y;
+
+					if (abs(dX) > abs(dY))
+					{
+						// move x towards avatar
+						int moveX = 1;
+						if (dX < 0)
+							moveX = -1;
+						MoveAvatar(pMaze, pGent, moveX, 0);
+					}
+					else if (dY != 0)
+					{
+						int moveY = 1;
+						if (dY < 0)
+							moveY = -1;
+						MoveAvatar(pMaze, pGent, 0, moveY);
+					}
+				}
+			} break;
+		}
+
 		Frog_UpdateEntity(&pMaze->m_tworld, pRoom, entid, pGent->m_x, pGent->m_y, pGent->m_iTile);
 	}
 }
@@ -634,11 +687,11 @@ void UpdateEntityMaze(EntityMaze * pMaze, FrDrawContext * pDrac, FrInput * pInpu
 		FrRoom * pRoomPrev = pMaze->m_roomt.m_pRoomPrev;
 		Frog_SortEntityUpdateList(pRoomPrev);
 
-		UpdateRoomEntities(pMaze, pRoomPrev);
+		UpdateRoomEntities(pMaze, pRoomPrev, dT);
 	}
 
 	GameRoom * pGroomCur = pMaze->m_pGroomCur;
 	Frog_SortEntityUpdateList(pGroomCur->m_pRoom);
 
-	UpdateRoomEntities(pMaze, pGroomCur->m_pRoom);
+	UpdateRoomEntities(pMaze, pGroomCur->m_pRoom, dT);
 }

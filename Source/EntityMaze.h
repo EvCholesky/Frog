@@ -10,6 +10,7 @@ typedef enum ENTK_t // tag = ent
 	ENTK_Key,
 	ENTK_Lock,
 	ENTK_Coin,
+	ENTK_Monster,
 
 	ENTK_Max,
 	ENTK_Min = 0,
@@ -27,6 +28,7 @@ typedef struct GameRoom_t // tag = groom
 typedef enum EUPO_t
 {
 	EUPO_Avatar,
+	EUPO_Monster,
 	EUPO_Item,
 	
 } EUPO;

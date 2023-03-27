@@ -83,3 +83,20 @@ inline char * PChzDebug(FrStringHash * pShash)
 }
 
 
+typedef struct FrEditbuffer_t // tag = freb
+{
+	char *		m_pChzMin;
+	char *		m_pChzMax;
+	char *		m_pChzAppend;
+} FrEditBuffer;
+
+FROG_CALL void Freb_init(FrEditBuffer * pFreb, char * pChMin, char * pChMax);
+FROG_CALL void Freb_Clear(FrEditBuffer * pFreb);
+FROG_CALL void Freb_AppendCh(FrEditBuffer * pFreb, const char * pChz, size_t cB);
+FROG_CALL void Freb_AppendChz(FrEditBuffer * pFreb, const char * pChz);
+FROG_CALL void Freb_Printf(FrEditBuffer * pFreb, const char * pChzFormat, ...);
+FROG_CALL void Freb_AppendChzWithPad(FrEditBuffer * pFreb, const char * pChz, char ch, size_t cChPad);
+FROG_CALL size_t Freb_CCh(FrEditBuffer * pFreb);
+
+
+
