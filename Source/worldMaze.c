@@ -167,11 +167,13 @@ void DumpRoomDefinition(DumpContext * pDctx, const RoomDefinition * pRmdef, char
 	DumpNamedValue(pDctx, aChScratch, "m_aiTile");
 	fprintf(pDctx->m_pFile, "\n");
 
-	DumpInt(pDctx, pRmdef->m_cRmtrans, "m_cRmtrans");
 	DumpOpen(pDctx, "{");
-	for (int iRmtrans = 0; iRmtrans < pRmdef->m_cRmtrans; ++iRmtrans)
+	for (int iRmtrans = 0; iRmtrans < FR_DIM(pRmdef->m_aRmtrans); ++iRmtrans)
 	{
 		const RoomTransition * pRmtrans = &pRmdef->m_aRmtrans[iRmtrans];
+		if (pRmtrans->m_transk == TRANSK_Nil)
+			break;
+
 		sprintf_s(aChScratch, cChScratch, "{ TRANSK_%s, \"%s\", %d, %d }", 
 				PChzFromTransk(pRmtrans->m_transk), 
 				pRmtrans->m_pChzDest, 
@@ -179,6 +181,7 @@ void DumpRoomDefinition(DumpContext * pDctx, const RoomDefinition * pRmdef, char
 				pRmtrans->m_dY);
 		DumpNamedValue(pDctx, aChScratch, "");
 	}
+	DumpNamedValue(pDctx, "{ TRANSK_Nil }", "");
 	DumpClose(pDctx, "}");
 
 	DumpClose(pDctx, "};\n");
@@ -216,36 +219,38 @@ void DumpRoomLibrary(DumpContext * pDctx, const RoomLibrary * pRmlib)
 {
 	char aChScratch[128];
 
-	for (int ipRmdef = 0; ipRmdef < pRmlib->m_cRmdef; ++ipRmdef)
+	for (int ipRmdef = 0; pRmlib->m_apRmdef[ipRmdef]; ++ipRmdef)
 	{
 		DumpRoomDefinition(pDctx, pRmlib->m_apRmdef[ipRmdef], aChScratch, FR_DIM(aChScratch));
 	}
 
 	DumpLine(pDctx, "static RoomDefinition s_apRmdef[] = ");
 	DumpOpen(pDctx, "{");
-	for (int ipRmdef = 0; ipRmdef < pRmlib->m_cRmdef; ++ipRmdef)
+	for (int ipRmdef = 0; pRmlib->m_apRmdef[ipRmdef]; ++ipRmdef)
 	{
 		RoomDefinition * pRmdef = pRmlib->m_apRmdef[ipRmdef];
 		sprintf_s(aChScratch, FR_DIM(aChScratch), "&s_rmdef%s", pRmdef->m_pChzName);
 		DumpNamedValue(pDctx, aChScratch, "");
 	}
+	DumpNamedValue(pDctx, "NULL", "");
 	DumpClose(pDctx, "}\n");
 	
 	DumpLine(pDctx, "static TileDefinition s_aTiledef[] = ");
 	DumpOpen(pDctx, "{");
-	for (int iTiledef = 0; iTiledef < pRmlib->m_cTiledef; ++iTiledef)
+	for (int iTiledef = 0; ; ++iTiledef)
 	{
-		DumpTileDefinition(pDctx, &pRmlib->m_aTiledef[iTiledef]);
+		TileDefinition * pTiledef = &pRmlib->m_aTiledef[iTiledef];
+		if (pTiledef->m_ch == '\0')
+			break;
+		DumpTileDefinition(pDctx, pTiledef);
 	}
+	DumpNamedValue(pDctx, "{'\\0'}", "");
 	DumpClose(pDctx, "}\n");
 
 	DumpLine(pDctx, "RoomLibrary s_rmlib = ");
 	DumpOpen(pDctx, "{");
 
-	DumpInt(pDctx, pRmlib->m_cRmdef, "m_cRmdef");
 	DumpNamedValue(pDctx, "s_apRmdef", "m_apRmdef");
-
-	DumpInt(pDctx, pRmlib->m_cRmdef, "m_cRmdef");
 	DumpNamedValue(pDctx, "s_aTiledef", "m_aTiledef");
 
 	DumpClose(pDctx, "}\n");
@@ -303,9 +308,12 @@ GameRoom * PGroomLookup(World * pWorld, const char * pChzName)
 
 const RoomTransition * PRmtransLookup(RoomDefinition * pRmdef, TRANSK transk)
 {
-	for (int iRmtrans = 0; iRmtrans < pRmdef->m_cRmtrans; ++iRmtrans)
+	for (int iRmtrans = 0; iRmtrans < FR_DIM(pRmdef->m_aRmtrans); ++iRmtrans)
 	{
 		const RoomTransition * pRmtrans = &pRmdef->m_aRmtrans[iRmtrans];
+		if (pRmtrans->m_transk == TRANSK_Nil)
+			break;
+		
 		if (pRmtrans->m_transk == transk)
 			return pRmtrans;
 	}
@@ -490,9 +498,11 @@ static void MoveAvatar(World * pWorld, GameEntity * pGent, int dX, int dY)
 	if (transk != TRANSK_Nil)
 	{
 		const RoomDefinition * pRmdef = pGroom->m_pRmdef;
-		for (int iRmtrans = 0; iRmtrans < pRmdef->m_cRmtrans; ++iRmtrans)
+		for (int iRmtrans = 0; iRmtrans < FR_DIM(pRmdef->m_aRmtrans); ++iRmtrans)
 		{
 			const RoomTransition * pRmtransIt = &pRmdef->m_aRmtrans[iRmtrans];
+			if (transk == TRANSK_Nil)
+				break;;
 			if (transk != pRmtransIt->m_transk)
 				continue;
 
@@ -748,16 +758,24 @@ void InitWorldMaze(World * pWorld)
 	Frog_InitTileWorld(&pWorld->m_tworld);
 
 	FrTileMap * pTmap = &pWorld->m_tworld.m_tmap;
-	for (int iTiledef = 0; iTiledef < pRmlib->m_cTiledef; ++iTiledef)
+	for (int iTiledef = 0; ; ++iTiledef)
 	{
 		TileDefinition * pTiledef = &pRmlib->m_aTiledef[iTiledef];
+		if (pTiledef->m_ch == '\0')
+			break;
+
 		Frog_SetTile(pTmap, iTiledef, pTiledef->m_ch, pTiledef->m_colFg, pTiledef->m_colBg, pTiledef->m_grftile);
 	}
 
-	pWorld->m_mpRmidGroom = (GameRoom *)malloc(sizeof(GameRoom) * s_rmlib.m_cRmdef);
-	ZeroAB(pWorld->m_mpRmidGroom, sizeof(pWorld->m_mpRmidGroom)); 
+	int cRmdef = 0;
+	for ( ; s_rmlib.m_apRmdef[cRmdef]; ++cRmdef)
+	{ ; }
 
-	for (int iRmdef = 0; iRmdef < s_rmlib.m_cRmdef; ++iRmdef)
+	pWorld->m_mpRmidGroom = (GameRoom *)malloc(sizeof(GameRoom) * cRmdef);
+	ZeroAB(pWorld->m_mpRmidGroom, sizeof(pWorld->m_mpRmidGroom)); 
+	pWorld->m_rmidMax = (RMID)cRmdef;
+
+	for (int iRmdef = 0; iRmdef < cRmdef; ++iRmdef)
 	{
 		RMID rmid = (RMID)iRmdef;
 		RoomDefinition * pRmdef = s_rmlib.m_apRmdef[iRmdef];
@@ -771,7 +789,6 @@ void InitWorldMaze(World * pWorld)
 
 		Frog_SetRoomTiles(pRoomFrog, &pWorld->m_tworld.m_tmap, pRmdef->m_aiTile);
 	}
-	pWorld->m_rmidMax = (RMID)s_rmlib.m_cRmdef;
 
 	GameRoom * pGroomStarting = &pWorld->m_mpRmidGroom[RMID_Min];
 	pWorld->m_pGroomCur = NULL;

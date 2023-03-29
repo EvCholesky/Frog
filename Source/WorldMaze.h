@@ -39,7 +39,6 @@ typedef struct RoomDefinition_t // tag = rmdef
 	int					m_dX;
 	int					m_dY;
 	const char *		m_aiTile;
-	int					m_cRmtrans;
 	RoomTransition		m_aRmtrans[6];
 } RoomDefinition;
 
@@ -53,10 +52,7 @@ typedef struct TileDefinition_t // tag = tiledef
 
 typedef struct RoomLibrary_t // tag = rmlib
 {
-	int					m_cRmdef;
 	RoomDefinition **	m_apRmdef;
-
-	int					m_cTiledef;
 	TileDefinition *	m_aTiledef;
 } RoomLibrary;
 
