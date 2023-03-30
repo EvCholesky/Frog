@@ -123,6 +123,13 @@ typedef enum KEYCODE_tag
 	KEYCODE_Nil = -1,
 } KEYCODE;
 
+typedef enum FINEV_t
+{
+	FINEV_None		= 0,
+	FINEV_Ctrl		= 0x1,	// One or more control buttons held 
+	FINEV_Shift		= 0x2,	// One or more shift buttons held
+	FINEV_Alt		= 0x4,	// One or more shift buttons held
+} FINEV;
 
 
 typedef struct FrInputEvent_t // tag=inev
@@ -131,6 +138,7 @@ typedef struct FrInputEvent_t // tag=inev
     EDGES				m_edges;
 	s32					m_nDeviceId;
     KEYCODE				m_keycode;
+	u8					m_finev;			// input flags
     u32					m_nTextInput;
 } FrInputEvent;
 

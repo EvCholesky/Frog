@@ -108,10 +108,26 @@ static void GlfwKeyboardCallback(GLFWwindow * pWindow, int nKey, int nScancode, 
 		default: return; // GLFW_REPEAT
 	}
 
+	u8 finev = FINEV_None;
+	if (nMods & GLFW_MOD_CONTROL)
+	{
+		finev |= FINEV_Ctrl;
+	}
+
+	if (nMods & GLFW_MOD_SHIFT)
+	{
+		finev |= FINEV_Shift;
+	}
+
+	if (nMods & GLFW_MOD_ALT)
+	{
+		finev |= FINEV_Alt;
+	}
 	FrInputEvent * pInev = Frog_PInevPushNew(&s_inevfifo);
 	pInev->m_eventk = EVENTK_Keyboard;
 	pInev->m_edges = edges;
 	pInev->m_nDeviceId = 0;
+	pInev->m_finev = finev;
 	pInev->m_keycode = KeycodeFromGlfwKey(nKey);
 }
 

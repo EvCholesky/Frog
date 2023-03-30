@@ -27,10 +27,6 @@ int main(int cpChzArg, const char * apChzArg[])
 	if (!Frog_FTryInitPlatform(&g_plat, s_nHzTarget))
 		return 0;
 
-#if USE_WORLD_MAZE
-	FTryDumpRoomFile("worldDefTest.inl");
-#endif
-
 	if (!Frog_FTryCreateWindow(&g_plat, s_dXWindow, s_dYWindow, "Frog"))
 		return 0;
 

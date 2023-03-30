@@ -224,7 +224,7 @@ void DumpRoomLibrary(DumpContext * pDctx, const RoomLibrary * pRmlib)
 		DumpRoomDefinition(pDctx, pRmlib->m_apRmdef[ipRmdef], aChScratch, FR_DIM(aChScratch));
 	}
 
-	DumpLine(pDctx, "static RoomDefinition s_apRmdef[] = ");
+	DumpLine(pDctx, "static RoomDefinition * s_apRmdef[] = ");
 	DumpOpen(pDctx, "{");
 	for (int ipRmdef = 0; pRmlib->m_apRmdef[ipRmdef]; ++ipRmdef)
 	{
@@ -233,7 +233,7 @@ void DumpRoomLibrary(DumpContext * pDctx, const RoomLibrary * pRmlib)
 		DumpNamedValue(pDctx, aChScratch, "");
 	}
 	DumpNamedValue(pDctx, "NULL", "");
-	DumpClose(pDctx, "}\n");
+	DumpClose(pDctx, "};\n");
 	
 	DumpLine(pDctx, "static TileDefinition s_aTiledef[] = ");
 	DumpOpen(pDctx, "{");
@@ -245,7 +245,7 @@ void DumpRoomLibrary(DumpContext * pDctx, const RoomLibrary * pRmlib)
 		DumpTileDefinition(pDctx, pTiledef);
 	}
 	DumpNamedValue(pDctx, "{'\\0'}", "");
-	DumpClose(pDctx, "}\n");
+	DumpClose(pDctx, "};\n");
 
 	DumpLine(pDctx, "RoomLibrary s_rmlib = ");
 	DumpOpen(pDctx, "{");
@@ -253,7 +253,7 @@ void DumpRoomLibrary(DumpContext * pDctx, const RoomLibrary * pRmlib)
 	DumpNamedValue(pDctx, "s_apRmdef", "m_apRmdef");
 	DumpNamedValue(pDctx, "s_aTiledef", "m_aTiledef");
 
-	DumpClose(pDctx, "}\n");
+	DumpClose(pDctx, "};\n");
 }
 
 bool FTryDumpRoomFile(const char * pChzFilename)
@@ -816,6 +816,16 @@ static void UpdateInput(World * pWorld, FrInput * pInput)
 		case KEYCODE_ArrowDown:		MoveAvatar(pWorld, pWorld->m_pGentAvatar, 0, -1);	break;
 		case KEYCODE_ArrowLeft:		MoveAvatar(pWorld, pWorld->m_pGentAvatar, -1, 0);	break;
 		case KEYCODE_ArrowRight:	MoveAvatar(pWorld, pWorld->m_pGentAvatar, 1, 0);	break;
+
+		case KEYCODE_S:
+			{
+				if (pInev->m_finev & FINEV_Ctrl)
+				{
+					const char * pChzFilename = "source\\worldTest.inl";
+					FTryDumpRoomFile(pChzFilename);
+					Frog_PostNote(&pWorld->m_noteq, NOTEK_LowPriority, "Wrote inline file '%s'", pChzFilename);
+				}
+			}
 		}
 	}
 	Frog_ClearInputEvents(pInput->m_pInevfifo);

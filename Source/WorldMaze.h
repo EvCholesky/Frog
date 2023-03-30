@@ -133,7 +133,6 @@ typedef struct GameEntity_t // tag = gent
 	int					m_y;
 	char				m_iTile;				// lookup into tile registry
 
-	FrRoom *			m_pScrParent;
 } GameEntity;
 
 
