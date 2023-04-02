@@ -216,6 +216,16 @@ typedef enum FONTSHK_t
 
 
 
+typedef enum DRBUFK_t  // draw buffer kind
+{
+	DRBUFK_Font,
+	DRBUFK_Sprite,
+
+	DRBUFK_Max,
+	DRBUFK_Min,
+	DRBUFK_Nil = -1,
+} DRBUFK;
+
 typedef struct FrFontData_t // tag = fontd
 {
 	FrColor			m_colMain;
@@ -228,16 +238,22 @@ typedef struct FrFontData_t // tag = fontd
 	ALIGNK			m_alignkY;
 	bool			m_fUseFixedWidth;
 	bool			m_fUseWordWrap;
-
+	
 	FrVec2			m_posCursor;
 } FrFontData;
 
 typedef struct FrDrawState_t // tag = dras
 {
 	FrFontData		m_fontd;
+
+	DRBUFK			m_drbufk;
+	bool			m_fNeedsNewCall;	// we've changed state - time to make a new draw call
+	bool			m_fUseScissor;
+	s16				m_xScissor;			// left scissor edge
+	s16				m_yScissor;			// bottom scissor edge
+	s16				m_dXScissor;
+	s16				m_dYScissor;
 } FrDrawState;
-
-
 
 typedef struct FrTextureMip_t // tag=texmip
 {
@@ -364,11 +380,16 @@ inline void	Frog_PopDras(FrDrawContext * pDrac)
 bool Frog_FTryStaticInitDrawContext(FrDrawContext * pDrac);
 bool Frog_FTryInitDrawContext(FrDrawContext * pDrac);
 void Frog_SetupOrthoViewport(f64 xMin, f64 yMin, f64 xMax, f64 yMax);
-void Frog_FlushFontVerts(FrDrawContext * pDrac);
+void Frog_FlushFontVerts(FrDrawContext * pDrac, int iVertBegin, int iVertEnd);
+void Frog_FlushDrawCalls(FrDrawContext * pDrac);
 
 FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wCh, const FrRect * pRect, FrColor colFg, FrColor colBg, float rRgb);
 FROG_CALL void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * pCoz);
 
+FROG_CALL void Frog_DrawSprite(FrDrawContext * pDrac, FrTexture * pTex, FrRect * pRectPos,  FrRect * pRectUv);
+
+FROG_CALL void Frog_SetScissor(FrDrawContext * pDrac, s16 xScissor, s16 yScissor, s16 dXScissor, s16 dYScissor);
+FROG_CALL void Frog_DisableScissor(FrDrawContext * pDrac);
 
 typedef enum FTILE
 {
@@ -525,7 +546,7 @@ FROG_CALL void Frog_SetTransition(FrRoomTransition * pRoomt, ROOMTK roomtk, FrRo
 FROG_CALL void Frog_UpdateTransition(FrRoomTransition * pRoomt, f32 dT);
 FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt, FrVec2 pos);
 
-FROG_CALL FrRoom * Frog_PRoomAllocate(FrTileWorld * pTworld, int dXCell, int dYCell);
+FROG_CALL FrRoom * Frog_PRoomAllocate(FrTileWorld * pTworld, int dXCell, int dYCell, int dXCharPixel, int dYCharPixel);
 FROG_CALL FrRoom * Frog_PRoom(FrTileWorld * pTworld, ROOMID roomid);
 FROG_CALL void Frog_FreeRoom(FrTileWorld * pTworld, FrRoom * pRoom);
 FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoom * pFroom, FrVec2 posUL, float rRGB);

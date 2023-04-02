@@ -67,7 +67,7 @@ int main(int cpChzArg, const char * apChzArg[])
 		UpdateSimpleMaze(&maze, &g_drac, &g_input, dTPrev);
 #endif
 
-		Frog_FlushFontVerts(&g_drac);
+		Frog_FlushDrawCalls(&g_drac);
 		Frog_SwapBuffers(&g_plat);
 
 		Frog_WaitUntilFrameEnd(&g_plat.m_pltime, cTickPrev);

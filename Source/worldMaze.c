@@ -501,8 +501,9 @@ static void MoveAvatar(World * pWorld, GameEntity * pGent, int dX, int dY)
 		for (int iRmtrans = 0; iRmtrans < FR_DIM(pRmdef->m_aRmtrans); ++iRmtrans)
 		{
 			const RoomTransition * pRmtransIt = &pRmdef->m_aRmtrans[iRmtrans];
-			if (transk == TRANSK_Nil)
-				break;;
+			if (pRmtransIt->m_transk == TRANSK_Nil)
+				break;
+
 			if (transk != pRmtransIt->m_transk)
 				continue;
 
@@ -775,12 +776,13 @@ void InitWorldMaze(World * pWorld)
 	ZeroAB(pWorld->m_mpRmidGroom, sizeof(pWorld->m_mpRmidGroom)); 
 	pWorld->m_rmidMax = (RMID)cRmdef;
 
+	static float s_dXyCharPixel = 64;
 	for (int iRmdef = 0; iRmdef < cRmdef; ++iRmdef)
 	{
 		RMID rmid = (RMID)iRmdef;
 		RoomDefinition * pRmdef = s_rmlib.m_apRmdef[iRmdef];
 
-		FrRoom * pRoomFrog = Frog_PRoomAllocate(&pWorld->m_tworld, pRmdef->m_dX, pRmdef->m_dY);
+		FrRoom * pRoomFrog = Frog_PRoomAllocate(&pWorld->m_tworld, pRmdef->m_dX, pRmdef->m_dY, s_dXyCharPixel, s_dXyCharPixel);
 
 		GameRoom * pGroom = &pWorld->m_mpRmidGroom[rmid];
 		pGroom->m_pRoomFrog = pRoomFrog;
@@ -833,9 +835,9 @@ static void UpdateInput(World * pWorld, FrInput * pInput)
 
 void UpdateWorldMaze(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32 dT)
 {
-	FrVec2 s_posScreen = Frog_Vec2Create(10, 400);
-	FrVec2 posText = Frog_Vec2Create(10.0f, 300.0f);
-	FrVec2 posNoteQueue = Frog_Vec2Create(10.0f, 250.0f);
+	FrVec2 s_posScreen = Frog_Vec2Create(10, 200);
+	FrVec2 posText = Frog_Vec2Create(10.0f, 80.0f);
+	FrVec2 posNoteQueue = Frog_Vec2Create(400.0f, 120.0f);
 
 	//char aCh[32];
 	//sprintf_s(aCh, FR_DIM(aCh), "$%d, %d keys", pWorld->m_aCIik[IIK_Coin], pWorld->m_aCIik[IIK_Key]);
@@ -860,7 +862,9 @@ void UpdateWorldMaze(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f3
 		Frog_SetTransition(pRoomt, ROOMTK_None, NULL, pRoomt->m_pRoom);
 	}
 
+	Frog_SetScissor(pDrac, 20, 136, 850, 650);
 	Frog_RenderTransition(pDrac, &pWorld->m_tworld, pRoomt, s_posScreen);
+	Frog_DisableScissor(pDrac);
 
 	UpdateInput(pWorld, pInput);
 

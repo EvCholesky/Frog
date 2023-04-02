@@ -216,7 +216,7 @@ static FrRoom * PRoomCreate(SimpleMaze * pMaze, int x, int y)
 	aCh[15] = 'L';
 	aCh[26] = 'L';
 	aCh[27] = 'L';
-	FrRoom * pRoom = Frog_PRoomAllocate(&pMaze->m_tworld, kDXTile, kDYTile);
+	FrRoom * pRoom = Frog_PRoomAllocate(&pMaze->m_tworld, kDXTile, kDYTile, 32, 32);
 	Frog_SetRoomTiles(pRoom, &pMaze->m_tworld.m_tmap, aCh);
 	return pRoom;
 }

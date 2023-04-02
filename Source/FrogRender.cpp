@@ -12,6 +12,7 @@
 #include <stdlib.h>
 
 static const int kChMaxDrawText = 1024;
+bool FTryInitDrawState(FrDrawState * pDras);
 
 FROG_CALL const char * PChzFromFTile(FTILE ftile)
 {
@@ -36,6 +37,43 @@ FROG_CALL const char * PChzFromFTile(FTILE ftile)
 	return "Unknown";
 }
 
+struct  FrDrawCall // tag = drcall
+{
+	int			m_iVertBegin;
+	int			m_iVertEnd;
+	int			m_iTex;
+	DRBUFK		m_drbufk;
+	bool		m_fUseScissor;
+	s16			m_xScissor;		// left side of scissor rect
+	s16			m_yScissor;		// bottom of scissor rect
+	s16			m_dXScissor;
+	s16			m_dYScissor;
+};
+
+struct FrDrawCallBuffer // tag = drcallbuf
+{
+	FrDrawCall	m_aDrcall[256];
+	int			m_cDrcall;
+};
+
+void InitDrawCallBuffer(FrDrawCallBuffer * pDrcallbuf);
+void PushDrawCall(FrDrawContext * pDrac, FrDrawCallBuffer * pDrcallbuf);
+void SubmitDrawCalls(FrDrawContext * pDrac, FrDrawCallBuffer * pDrcallbuf);
+
+struct FrVertex // tag = vert
+{
+	f32			m_x, m_y;
+	f32			m_u, m_v;
+	f32			m_r, m_g, m_b, m_a;
+};
+
+struct FrVertexBuffer // tag = vbuf
+{
+	FrVertex		m_aVert[10240]; 
+	int				m_cVert;
+};
+
+
 struct FrFontVertex // tag = fvert
 {
 	f32			m_x, m_y;
@@ -52,6 +90,9 @@ struct FrFontVertexBuffer // tag = fvbuf
 
 FixAry<FrTexture, 100>	s_aryTex;
 FrFontVertexBuffer g_Fvbuf;
+FrVertexBuffer g_Vbuf;
+FrDrawCallBuffer g_drcallbuf;
+
 
 inline s32	CSolveQuadratic(f32 gA, f32 gB, f32 gC, f32 * aGOutput)
 {
@@ -472,9 +513,178 @@ void InitFontd(FrFontData * pFontd)
 	pFontd->m_posCursor = Frog_Vec2Create(0.0f, 0.0f);
 }
 
+void SetDrawCallState(FrDrawState * pDras, FrDrawCall * pDrcall, int iVertBegin, int iTex)
+{
+	pDrcall->m_iVertBegin = iVertBegin;
+	pDrcall->m_iVertEnd = iVertBegin;
+	pDrcall->m_iTex = 0;
+	pDrcall->m_drbufk = pDras->m_drbufk;
+	pDrcall->m_fUseScissor = pDras->m_fUseScissor;
+	pDrcall->m_xScissor = pDras->m_xScissor;
+	pDrcall->m_yScissor = pDras->m_yScissor;
+	pDrcall->m_dXScissor = pDras->m_dXScissor;
+	pDrcall->m_dYScissor = pDras->m_dYScissor;
+}
+
+void AppendDrawCall(FrDrawContext * pDrac, FrDrawCallBuffer * pDrcallbuf, int iVertBegin, int iTex)
+{
+	// cache off the current draw state. When it changes we'll save off the verts with these settings and make a new draw call
+
+	FR_ASSERT(pDrcallbuf->m_cDrcall < FR_DIM(pDrcallbuf->m_aDrcall), "Draw call overflow");
+	FrDrawCall * pDrcall = &pDrcallbuf->m_aDrcall[pDrcallbuf->m_cDrcall];
+	++pDrcallbuf->m_cDrcall;
+
+	FrDrawState * pDras = pDrac->m_pDras;
+	SetDrawCallState(pDras, pDrcall, iVertBegin, iTex);
+}
+
+
+void Frog_PushDrawCallIfChanged(FrDrawContext * pDrac, DRBUFK drbufkCur)
+{
+	FrDrawState * pDras = pDrac->m_pDras;
+	if (pDras->m_drbufk != drbufkCur)
+	{
+		pDras->m_drbufk = drbufkCur;
+		pDras->m_fNeedsNewCall = true;
+	}
+
+	if (pDras->m_fNeedsNewCall)
+	{
+		PushDrawCall(pDrac, &g_drcallbuf);
+	}
+}
+
+// save initial state in draw call
+// try to draw, if state is dirty - finalize call and save new state
+
+void PushDrawCall(FrDrawContext * pDrac, FrDrawCallBuffer * pDrcallbuf)
+{
+	FrDrawState * pDras = pDrac->m_pDras;
+	pDras->m_fNeedsNewCall = false;
+	int iVert  = 0;
+	int iTex = 0;
+	switch (pDras->m_drbufk)
+	{
+	case DRBUFK_Font:
+		{
+			iVert = g_Fvbuf.m_cFvert;
+
+			FrTexture * pTex = pDrac->m_fontman.m_aFont[pDras->m_fontd.m_fontk].m_pTex;
+			if (pTex)
+			{
+				iTex = pTex->m_iTex;
+			}
+
+			break;
+		}
+
+	case DRBUFK_Sprite:
+		iVert = g_Vbuf.m_cVert;
+		break;
+	}
+
+	if (pDrcallbuf->m_cDrcall)
+	{
+		FrDrawCall * pDrcallTail = &pDrcallbuf->m_aDrcall[pDrcallbuf->m_cDrcall-1];
+		if (iVert == pDrcallTail->m_iVertBegin)
+		{
+			// no verts with this draw state - just push the new settings into the active draw call
+
+			SetDrawCallState(pDras, pDrcallTail, iVert, iTex);
+			return;
+		}
+
+		pDrcallTail->m_iVertEnd = iVert;
+	}
+
+	AppendDrawCall(pDrac, pDrcallbuf, iVert, iTex);
+}
+
+void SubmitDrawCalls(FrDrawContext * pDrac, FrDrawCallBuffer * pDrcallbuf)
+{
+	PushDrawCall(pDrac, pDrcallbuf);
+	for (int iDrcall = 0; iDrcall < pDrcallbuf->m_cDrcall; ++iDrcall)
+	{
+		FrDrawCall * pDrcall = &pDrcallbuf->m_aDrcall[iDrcall];
+		if (pDrcall->m_iVertEnd == pDrcall->m_iVertBegin)
+			continue;
+
+		if (pDrcall->m_fUseScissor)
+		{
+			glEnable(GL_SCISSOR_TEST);
+			glScissor(pDrcall->m_xScissor, pDrcall->m_yScissor, pDrcall->m_dXScissor, pDrcall->m_dYScissor);
+		}
+		else
+		{
+			glDisable(GL_SCISSOR_TEST);
+		}
+
+		switch (pDrcall->m_drbufk)
+		{
+		case DRBUFK_Font:
+
+			Frog_FlushFontVerts(pDrac, pDrcall->m_iVertBegin, pDrcall->m_iVertEnd);
+			break;
+
+		case DRBUFK_Sprite:
+			break;
+		}
+	}
+
+	g_Fvbuf.m_cFvert = 0;
+	g_Vbuf.m_cVert = 0;
+	pDrcallbuf->m_cDrcall = 0;
+
+	FTryInitDrawState(pDrac->m_pDras);
+	PushDrawCall(pDrac, pDrcallbuf);
+	glDisable(GL_SCISSOR_TEST);
+}
+
+void Frog_FlushDrawCalls(FrDrawContext * pDrac)
+{
+	SubmitDrawCalls(pDrac, &g_drcallbuf);
+}
+
+FROG_CALL void Frog_SetScissor(FrDrawContext * pDrac, s16 xScissor, s16 yScissor, s16 dXScissor, s16 dYScissor)
+{
+	FrDrawState * pDras = pDrac->m_pDras;
+	if (pDras->m_fUseScissor && 
+		pDras->m_xScissor == xScissor &&
+		pDras->m_yScissor == yScissor &&
+		pDras->m_dXScissor == dXScissor &&
+		pDras->m_dYScissor == dYScissor)
+	{
+		return;
+	}
+
+	pDras->m_fNeedsNewCall = true;
+	pDras->m_fUseScissor = true;
+	pDras->m_xScissor = xScissor;
+	pDras->m_yScissor = yScissor;
+	pDras->m_dXScissor = dXScissor;
+	pDras->m_dYScissor = dYScissor;
+}
+
+FROG_CALL void Frog_DisableScissor(FrDrawContext * pDrac)
+{
+	FrDrawState * pDras = pDrac->m_pDras;
+	if (pDras->m_fUseScissor)
+	{
+		pDras->m_fUseScissor = true;
+		pDras->m_fNeedsNewCall = true;
+	}
+}
+
 bool FTryInitDrawState(FrDrawState * pDras)
 {
 	InitFontd(&pDras->m_fontd);
+	pDras->m_drbufk = DRBUFK_Font;
+	pDras->m_fUseScissor = false;
+	pDras->m_fNeedsNewCall = true;
+	pDras->m_xScissor = SHRT_MIN;
+	pDras->m_yScissor = SHRT_MIN;
+	pDras->m_dXScissor = SHRT_MAX;
+	pDras->m_dYScissor = SHRT_MAX;
 	return true;
 }
 
@@ -482,6 +692,11 @@ bool Frog_FTryStaticInitDrawContext(FrDrawContext * pDrac)
 {
 	if (!FTryStaticInitShaderManager(&pDrac->m_shman))
 		return false;
+
+	g_Fvbuf.m_cFvert = 0;
+	g_Vbuf.m_cVert = 0;
+	g_drcallbuf.m_cDrcall = 0;
+
 	return true;
 }
 
@@ -720,7 +935,7 @@ void CreateVerts(FrFontManager * pFontman , FrDrawState * pDras, FrFontVertexBuf
 	pDras->m_fontd.m_posCursor = posCursor;
 }
 
-void Frog_FlushFontVerts(FrDrawContext * pDrac)
+void Frog_FlushFontVerts(FrDrawContext * pDrac, int iVertBegin, int iVertEnd)
 {
 	FrFontVertexBuffer * pFvbuf = &g_Fvbuf;
 
@@ -752,21 +967,21 @@ void Frog_FlushFontVerts(FrDrawContext * pDrac)
 	FrTexture * pTex = pFontman->m_aFont[fontk].m_pTex;
 	SetShaderParam(pFontman->m_mpFontshkIParamTex[iShhand], pTex, 0);
 
-	glVertexPointer(3, GL_FLOAT, sizeof(FrFontVertex), &aFvert[0].m_x);
+	glVertexPointer(3, GL_FLOAT, sizeof(FrFontVertex), &aFvert[iVertBegin].m_x);
 	glEnableClientState(GL_VERTEX_ARRAY);
 			
-	glColorPointer(4, GL_FLOAT, (s32)sizeof(FrFontVertex), &aFvert[0].m_r);
+	glColorPointer(4, GL_FLOAT, (s32)sizeof(FrFontVertex), &aFvert[iVertBegin].m_r);
 	glEnableClientState(GL_COLOR_ARRAY);
 
 	glClientActiveTexture(GL_TEXTURE0);
-	glTexCoordPointer(2, GL_FLOAT, (s32)sizeof(FrFontVertex), &aFvert[0].m_u);
+	glTexCoordPointer(2, GL_FLOAT, (s32)sizeof(FrFontVertex), &aFvert[iVertBegin].m_u);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
 	glClientActiveTexture(GL_TEXTURE1);
-	glTexCoordPointer(4, GL_FLOAT, (s32)sizeof(FrFontVertex), &aFvert[0].m_uMin);
+	glTexCoordPointer(4, GL_FLOAT, (s32)sizeof(FrFontVertex), &aFvert[iVertBegin].m_uMin);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
-	glDrawArrays(GL_QUADS, 0, pFvbuf->m_cFvert);
+	glDrawArrays(GL_QUADS, 0, iVertEnd - iVertBegin);
 
 	if (pTex)
 	{
@@ -780,12 +995,13 @@ void Frog_FlushFontVerts(FrDrawContext * pDrac)
 	EndShader();
 
 	glPopMatrix();
-	pFvbuf->m_cFvert = 0;
 }	
 
 
 FROG_CALL void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * pCoz)
 {
+	Frog_PushDrawCallIfChanged(pDrac, DRBUFK_Font);
+
 	// draw characters to the right. pos is the left side baseline
 
 	CreateVerts(&pDrac->m_fontman, pDrac->m_pDras, &g_Fvbuf, pos, pCoz);
@@ -893,7 +1109,7 @@ FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wch, const FrRect * pRec
 	auto fontk = pDras->m_fontd.m_fontk;
 	FrFontGlyphFile * aGlyphf = pFontman->m_aFont[fontk].m_pGlyphf;
 
-	f32 gCharSize = 30.0f; //pDras->m_fontd.m_gCharSize;
+	f32 gCharSize = pDras->m_fontd.m_gCharSize;
 	f32 rKerning = pDras->m_fontd.m_rKerning;
 
 	auto pGlyph = PGlyphFind(aGlyphf, wch);
@@ -1000,14 +1216,14 @@ FROG_CALL void Frog_UpdateTransition(FrRoomTransition * pRoomt, f32 dT)
 	}
 }
 
-FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt, FrVec2 pos)
+FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt, FrVec2 posUL)
 {
 	float rRgbNew = 1.0f;
-	FrVec2 posNew = pos;
+	FrVec2 posNew = posUL;
 	if (pRoomt->m_roomtk == ROOMTK_Translate)
 	{
 		f32 rSlide = Frog_GCurveS(pRoomt->m_r);
-		FrVec2 posPrev = Frog_Vec2MulAdd(&pos, &pRoomt->m_dPos, rSlide);
+		FrVec2 posPrev = Frog_Vec2MulAdd(&posUL, &pRoomt->m_dPos, rSlide);
 
 		rRgbNew = Frog_GMin(pRoomt->m_r * 4.0f, 1.0f);
 		float rRgbPrev = 1.0f - (Frog_GMax(0.0f, pRoomt->m_r - 0.75f) * 4.0f);
@@ -1021,10 +1237,16 @@ FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworl
 
 FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoom * pRoom, FrVec2 posUL, float rRGB)
 {
+	Frog_PushDrawCallIfChanged(pDrac, DRBUFK_Font);
+
 	FrRect rect;
 	int dX = pRoom->m_dX;
 	float dXCharPixel = pRoom->m_dXCharPixel;
 	float dYCharPixel = pRoom->m_dYCharPixel;
+
+	FrDrawState * pDras = pDrac->m_pDras;
+	float gCharSizePrev = pDras->m_fontd.m_gCharSize;
+	pDras->m_fontd.m_gCharSize = ceilf(dYCharPixel * 0.85f);
 
 	for (int y = 0; y < pRoom->m_dY; ++y)
 	{
@@ -1053,6 +1275,8 @@ FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrR
 			}
 		}
 	}
+
+	pDras->m_fontd.m_gCharSize = gCharSizePrev;
 }
 
 FROG_CALL void Frog_SetRoomTiles(FrRoom * pRoom, FrTileMap * pTmap, const char * pChzScreen)
@@ -1223,20 +1447,17 @@ FROG_CALL void Frog_FreeEntity(FrTileWorld * pTworld, ENTID entid)
 	FreeToRoster(entid, (s32*)pTworld->m_aEntidFree, &pTworld->m_cEntAllocated, kCEntWorldMax);
 }
 
-FROG_CALL FrRoom * Frog_PRoomAllocate(FrTileWorld * pTworld, int dXCell, int dYCell)
+FROG_CALL FrRoom * Frog_PRoomAllocate(FrTileWorld * pTworld, int dXCell, int dYCell, int dXCharPixel, int dYCharPixel)
 {
 	ROOMID roomid = (ROOMID)IdAllocateFromRoster((s32*)pTworld->m_aRoomidFree, &pTworld->m_cRoomAllocated, kCRoomWorldMax);
 	if (roomid == ROOMID_Nil)
 		return nullptr;
 
-	static const float s_dXCharPixel = 32.0f;
-	static const float s_dYCharPixel = 32.0f;
-
 	FrRoom * pRoom = &pTworld->m_aRoom[roomid];
 	pRoom->m_dX = dXCell;
 	pRoom->m_dY = dYCell;
-	pRoom->m_dXCharPixel = s_dXCharPixel;
-	pRoom->m_dYCharPixel = s_dYCharPixel;
+	pRoom->m_dXCharPixel = (float)dXCharPixel;
+	pRoom->m_dYCharPixel = (float)dYCharPixel;
 	pRoom->m_nGenRoom = pTworld->m_nGenRoom++;
 	pRoom->m_roomid = roomid;
 	pRoom->m_cpEnt = 0;

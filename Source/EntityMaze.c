@@ -146,6 +146,7 @@ static const char * s_pChzRoomEnd =
 
 #define kDXTile 12
 #define kDYTile 12
+#define kXyCharPixel 32
 
 FDIR static FdirFromXyScreen(int xScr, int yScr)
 {
@@ -241,7 +242,7 @@ static FrRoom * PRoomCreate(EntityMaze * pMaze, int x, int y)
 		}
 	}
 
-	FrRoom * pRoom = Frog_PRoomAllocate(&pMaze->m_tworld, kDXTile, kDYTile);
+	FrRoom * pRoom = Frog_PRoomAllocate(&pMaze->m_tworld, kDXTile, kDYTile, kXyCharPixel, kXyCharPixel);
 	Frog_SetRoomTiles(pRoom, &pMaze->m_tworld.m_tmap, aCh);
 	return pRoom;
 }
