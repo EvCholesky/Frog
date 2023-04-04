@@ -152,6 +152,7 @@ typedef struct FrShaderManager_t // tag = shman
 {
 	FrShader		m_aShad[16];
 	FrShaderHandle	m_mpCoreshkShhand[CORESHK_Max];
+	s32				m_mpCoreshkIParamTex[CORESHK_Max];
 } FrShaderManager;
 
 void Frog_InitShman(FrShaderManager * pShman);
@@ -247,6 +248,7 @@ typedef struct FrDrawState_t // tag = dras
 	FrFontData		m_fontd;
 
 	DRBUFK			m_drbufk;
+	int				m_iTexSprite;
 	bool			m_fNeedsNewCall;	// we've changed state - time to make a new draw call
 	bool			m_fUseScissor;
 	s16				m_xScissor;			// left scissor edge
@@ -280,6 +282,8 @@ typedef struct FrTexture_t // tag=tex
 
 inline s32 DXFromTex(FrTexture * pTex)	{ return pTex->m_aTexmip[0].m_dX; }
 inline s32 DYFromTex(FrTexture * pTex)	{ return pTex->m_aTexmip[0].m_dY; }
+FROG_CALL FrTexture * Frog_PTexLoad(char* pChzFilename, bool fFlipVertically);
+FROG_CALL void Frog_SetTextureFilteringNearest(FrTexture * pTex);
 
 
 
@@ -386,8 +390,9 @@ void Frog_FlushDrawCalls(FrDrawContext * pDrac);
 FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wCh, const FrRect * pRect, FrColor colFg, FrColor colBg, float rRgb);
 FROG_CALL void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * pCoz);
 
-FROG_CALL void Frog_DrawSprite(FrDrawContext * pDrac, FrTexture * pTex, FrRect * pRectPos,  FrRect * pRectUv);
+FROG_CALL void Frog_DrawSprite(FrDrawContext * pDrac, FrTexture * pTex, FrRect * pRectPos,  FrRect * pRectUv, FrColorVec * pColvec);
 
+FROG_CALL void Frog_SetSpriteTexture(FrDrawContext * pDrac, FrTexture * pTex);
 FROG_CALL void Frog_SetScissor(FrDrawContext * pDrac, s16 xScissor, s16 yScissor, s16 dXScissor, s16 dYScissor);
 FROG_CALL void Frog_DisableScissor(FrDrawContext * pDrac);
 
@@ -402,9 +407,18 @@ typedef enum FTILE
 
 FROG_CALL const char * PChzFromFTile(FTILE ftile);
 
+typedef struct FrSpriteTile_t // tag = sptile
+{
+	f32				m_uMin;
+	f32				m_vMin;
+	f32				m_uMax;
+	f32				m_vMax;
+} FrSpriteTile;
+
 typedef struct FrScreenTile_t // tag = tile
 {
 	u32				m_wch;
+	s16				m_iSptile;	// index into sprite tiles
 	FrColor			m_colFg;
 	FrColor			m_colBg;
 	u8				m_ftile;
@@ -415,6 +429,7 @@ typedef struct FrScreenTile_t // tag = tile
 typedef struct FrTileMap_t // tag = tmap
 {
 	FrScreenTile	m_mpChTile[255];
+	FrSpriteTile	m_aSptile[128];
 } FrTileMap;
 
 typedef enum ENTID_t
@@ -503,6 +518,8 @@ typedef struct FrTileWorld_t	// tag = tworld
 	int					m_cEntAllocated;
 	int					m_cRoomAllocated;
 	int					m_nGenRoom;			// generation id for next screen created
+
+	FrTexture *			m_pTexSprite;
 } FrTileWorld;
 
 typedef struct FrCellContents_t // tag = cellc
@@ -553,7 +570,8 @@ FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrR
 FROG_CALL void Frog_SetRoomTiles(FrRoom * pFroom, FrTileMap * pTmap, const char * pCozScreen);
 FROG_CALL void Frog_SortEntityUpdateList(FrRoom * pRoom);
 
-FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char iTile, u32 wchOut, FrColor colFg,  FrColor colBg, u8 ftile);
+FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char iTile, u32 wchOut, FrColor colFg,  FrColor colBg, s16 iSptile, u8 ftile);
+FROG_CALL void Frog_SetSpriteTile(FrTileMap * pTmap, s16 iSptile, f32 uMin, f32 vMin, f32 uMax, f32 vMax);
 FROG_CALL u8 Frog_FtileFromCell(FrRoom * pFroom, int xCell, int yCell);
 
 FROG_CALL ENTID Frog_EntidAllocate(FrTileWorld * pTworld);

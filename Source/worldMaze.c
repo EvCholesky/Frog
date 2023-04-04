@@ -21,10 +21,15 @@ typedef struct DumpContext_t // tag = dctx
 
 void DumpInt(DumpContext * pDctx, int n, const char * pChzComment);
 void DumpRoomDefinition(DumpContext * pDctx, const RoomDefinition * pRmdef, char * aChScratch, int cChScratch);
+void DumpSpriteDefinition(DumpContext * pDctx, const SpriteDefinition * pSpdef);
 void DumpTileDefinition(DumpContext * pDctx, const TileDefinition * pTiledef);
 void DumpRoomLibrary(DumpContext * pDctx, const RoomLibrary * pRmlib);
 
+#define UFROMPX(upx) ((float)upx / 512.0f)
+#define VFROMPX(vpx) ((float)vpx / 512.0f)
 #include "worldDef.inl"
+#undef UFROMPX
+#undef VFROMPX
 
 static int s_cChComment = 60;
 static int s_cColTab = 4;
@@ -187,11 +192,30 @@ void DumpRoomDefinition(DumpContext * pDctx, const RoomDefinition * pRmdef, char
 	DumpClose(pDctx, "};\n");
 }
 
+void DumpSpriteDefinition(DumpContext * pDctx, const SpriteDefinition * pSpdef)
+{
+	PadToColumn(&pDctx->m_freb, ' ', pDctx->m_cTabIndent * s_cColTab);
+
+	static float g_dXTex = 512.0f;
+	static float g_dYTex = 512.0f;
+	Freb_Printf(&pDctx->m_freb, "{ UFROMPX(%d), VFROMPX(%d), UFROMPX(%d), VFROMPX(%d), \"%s\"", 
+			(int)rintf(pSpdef->m_uMin * g_dXTex),
+			(int)rintf(pSpdef->m_vMin * g_dYTex),
+			(int)rintf(pSpdef->m_uMax * g_dXTex),
+			(int)rintf(pSpdef->m_vMax * g_dYTex),
+			pSpdef->m_pChzName);
+
+	Freb_Printf(&pDctx->m_freb, "},");
+
+	fprintf(pDctx->m_pFile, "%s\n", pDctx->m_freb.m_pChzMin);
+	Freb_Clear(&pDctx->m_freb);
+}
+
 void DumpTileDefinition(DumpContext * pDctx, const TileDefinition * pTiledef)
 {
 	PadToColumn(&pDctx->m_freb, ' ', pDctx->m_cTabIndent * s_cColTab);
 
-	Freb_Printf(&pDctx->m_freb, "{ '%c', (s32)0x%8X, (s32)0x%8X, ", pTiledef->m_ch, pTiledef->m_colFg, pTiledef->m_colBg );
+	Freb_Printf(&pDctx->m_freb, "{ '%c', (s32)0x%08X, (s32)0x%08X, %d, ", pTiledef->m_ch, pTiledef->m_colFg, pTiledef->m_colBg, pTiledef->m_iSpdef );
 
 	if(pTiledef->m_grftile == FTILE_None)
 	{
@@ -235,6 +259,18 @@ void DumpRoomLibrary(DumpContext * pDctx, const RoomLibrary * pRmlib)
 	DumpNamedValue(pDctx, "NULL", "");
 	DumpClose(pDctx, "};\n");
 	
+	DumpLine(pDctx, "static SpriteDefinition s_aSpdef[] = ");
+	DumpOpen(pDctx, "{");
+	for (int iSpdef = 0; ; ++iSpdef)
+	{
+		SpriteDefinition * pSpdef = &pRmlib->m_aSpdef[iSpdef];
+		if (pSpdef->m_pChzName == NULL)
+			break;
+		DumpSpriteDefinition(pDctx, pSpdef);
+	}
+	DumpNamedValue(pDctx, "{ 0, 0, 0, 0, NULL}", "");
+	DumpClose(pDctx, "};\n");
+
 	DumpLine(pDctx, "static TileDefinition s_aTiledef[] = ");
 	DumpOpen(pDctx, "{");
 	for (int iTiledef = 0; ; ++iTiledef)
@@ -252,6 +288,7 @@ void DumpRoomLibrary(DumpContext * pDctx, const RoomLibrary * pRmlib)
 
 	DumpNamedValue(pDctx, "s_apRmdef", "m_apRmdef");
 	DumpNamedValue(pDctx, "s_aTiledef", "m_aTiledef");
+	DumpNamedValue(pDctx, "s_aSpdef", "m_aSpdef");
 
 	DumpClose(pDctx, "};\n");
 }
@@ -740,6 +777,7 @@ void UpdateRoomEntities(World * pWorld, FrRoom * pRoom, float dT)
 	}
 }
 
+FrTexture * pTexSprite = NULL;
 void InitWorldMaze(World * pWorld)
 {
 	RoomLibrary * pRmlib = &s_rmlib;
@@ -758,14 +796,27 @@ void InitWorldMaze(World * pWorld)
 	Frog_InitNoteQueue(&pWorld->m_noteq, 16);
 	Frog_InitTileWorld(&pWorld->m_tworld);
 
+	pTexSprite = Frog_PTexLoad("Assets/sprites.png", true);
+	Frog_SetTextureFilteringNearest(pTexSprite);
+	pWorld->m_tworld.m_pTexSprite = pTexSprite;
+
 	FrTileMap * pTmap = &pWorld->m_tworld.m_tmap;
+	for (int iSpdef = 0; ; ++iSpdef)
+	{
+		SpriteDefinition * pSpdef = &pRmlib->m_aSpdef[iSpdef];
+		if (pSpdef->m_pChzName == NULL)
+			break;
+
+		Frog_SetSpriteTile(pTmap, iSpdef, pSpdef->m_uMin, pSpdef->m_vMin, pSpdef->m_uMax, pSpdef->m_vMax);
+	}
+
 	for (int iTiledef = 0; ; ++iTiledef)
 	{
 		TileDefinition * pTiledef = &pRmlib->m_aTiledef[iTiledef];
 		if (pTiledef->m_ch == '\0')
 			break;
 
-		Frog_SetTile(pTmap, iTiledef, pTiledef->m_ch, pTiledef->m_colFg, pTiledef->m_colBg, pTiledef->m_grftile);
+		Frog_SetTile(pTmap, iTiledef, pTiledef->m_ch, pTiledef->m_colFg, pTiledef->m_colBg, pTiledef->m_iSpdef, pTiledef->m_grftile);
 	}
 
 	int cRmdef = 0;
@@ -776,7 +827,7 @@ void InitWorldMaze(World * pWorld)
 	ZeroAB(pWorld->m_mpRmidGroom, sizeof(pWorld->m_mpRmidGroom)); 
 	pWorld->m_rmidMax = (RMID)cRmdef;
 
-	static float s_dXyCharPixel = 64;
+	static int s_dXyCharPixel = 64;
 	for (int iRmdef = 0; iRmdef < cRmdef; ++iRmdef)
 	{
 		RMID rmid = (RMID)iRmdef;
@@ -823,7 +874,7 @@ static void UpdateInput(World * pWorld, FrInput * pInput)
 			{
 				if (pInev->m_finev & FINEV_Ctrl)
 				{
-					const char * pChzFilename = "source\\worldTest.inl";
+					const char * pChzFilename = "source\\worldDef.inl";
 					FTryDumpRoomFile(pChzFilename);
 					Frog_PostNote(&pWorld->m_noteq, NOTEK_LowPriority, "Wrote inline file '%s'", pChzFilename);
 				}

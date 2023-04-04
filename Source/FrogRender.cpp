@@ -13,6 +13,8 @@
 
 static const int kChMaxDrawText = 1024;
 bool FTryInitDrawState(FrDrawState * pDras);
+void BeginShader(FrShaderManager * pShman, FrShaderHandle shhand);
+void EndShader();
 
 FROG_CALL const char * PChzFromFTile(FTILE ftile)
 {
@@ -89,8 +91,8 @@ struct FrFontVertexBuffer // tag = fvbuf
 };
 
 FixAry<FrTexture, 100>	s_aryTex;
-FrFontVertexBuffer g_Fvbuf;
-FrVertexBuffer g_Vbuf;
+FrFontVertexBuffer g_fvbuf;
+FrVertexBuffer g_vbuf;
 FrDrawCallBuffer g_drcallbuf;
 
 
@@ -231,6 +233,16 @@ void SetShaderParam(s32 iParam, const FrTexture * pTex, int iTextureUnit)
 
 	glUniform1iARB(iParam, iTextureUnit);
 
+	/*
+	GLuint sampler = 0;
+	glGenSamplers(1, &sampler);
+
+	glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	GLuint texture_unit = //The texture unit to which your texture is bound
+	glBindSampler(texture_unit, sampler);
+	*/
 }
 
 static void PrintShaderInfoLog(FrDrawInt object, PFNGLGETSHADERINFOLOGPROC getInfoLogProc)
@@ -341,11 +353,14 @@ bool FTryInitShaderManager(FrShaderManager * pShman)
 		pShman->m_mpCoreshkShhand[iShhand] = SHHAND_Nil;
 	}
 
-	pShman->m_mpCoreshkShhand[CORESHK_Sprite] = ShhandLoad(
-													pShman,
-													"BasicSpriteShader",
-													g_spriteMainVertex,
-													g_spriteMainFragment);
+	FrShaderHandle shhandSprite = ShhandLoad(
+											pShman,
+											"BasicSpriteShader",
+											g_spriteMainVertex,
+											g_spriteMainFragment);
+
+	pShman->m_mpCoreshkShhand[CORESHK_Sprite] = shhandSprite;
+	pShman->m_mpCoreshkIParamTex[CORESHK_Sprite] = IParamFind(pShman, shhandSprite, "s_sampTexture");
 
 	FrShader * pShad = &pShman->m_aShad[pShman->m_mpCoreshkShhand[CORESHK_Sprite]];
 	glBindAttribLocation(pShad->m_driVertexShader, VERTATTR_Position, "s_AttribPosition");
@@ -370,7 +385,7 @@ bool FTryInitShaderManager(FrShaderManager * pShman)
 	return true;
 }
 
-FrTexture * PTexLoad(char* pChzFilename, bool fFlipVertically)
+FROG_CALL FrTexture * Frog_PTexLoad(char* pChzFilename, bool fFlipVertically)
 {
 	// TODO - should replace this with a hash
 	FrStringHash shashFilename = ShashCreate(pChzFilename);
@@ -446,13 +461,21 @@ FrTexture * PTexLoad(char* pChzFilename, bool fFlipVertically)
 	return pTex;
 }
 
+FROG_CALL void Frog_SetTextureFilteringNearest(FrTexture * pTex)
+{
+	glBindTexture(GL_TEXTURE_2D, pTex->m_driId);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+}
+
 bool FTryLoadFont(FrFontManager * pFontman, FONTK fontk, const char * pCozFilename)
 {
 	char aCh[1024];
 
 	// BB - need to change to ConcatPCoz
 	ConcatPChz(pCozFilename, ".png", aCh, sizeof(aCh));
-	pFontman->m_aFont[fontk].m_pTex = PTexLoad(aCh, false);
+	pFontman->m_aFont[fontk].m_pTex = Frog_PTexLoad(aCh, false);
 
 	if (!pFontman->m_aFont[fontk].m_pTex)
 	{
@@ -517,7 +540,7 @@ void SetDrawCallState(FrDrawState * pDras, FrDrawCall * pDrcall, int iVertBegin,
 {
 	pDrcall->m_iVertBegin = iVertBegin;
 	pDrcall->m_iVertEnd = iVertBegin;
-	pDrcall->m_iTex = 0;
+	pDrcall->m_iTex = iTex;
 	pDrcall->m_drbufk = pDras->m_drbufk;
 	pDrcall->m_fUseScissor = pDras->m_fUseScissor;
 	pDrcall->m_xScissor = pDras->m_xScissor;
@@ -557,6 +580,22 @@ void Frog_PushDrawCallIfChanged(FrDrawContext * pDrac, DRBUFK drbufkCur)
 // save initial state in draw call
 // try to draw, if state is dirty - finalize call and save new state
 
+int CVertFromDrbufk(DRBUFK drbufk)
+{
+	switch (drbufk)
+	{
+	case DRBUFK_Font:
+		return g_fvbuf.m_cFvert;
+
+	case DRBUFK_Sprite:
+		return g_vbuf.m_cVert;
+
+	default:
+		FR_ASSERT(false, "Unknown DRBUFK (%d)", drbufk);
+		return 0;
+	}
+}
+
 void PushDrawCall(FrDrawContext * pDrac, FrDrawCallBuffer * pDrcallbuf)
 {
 	FrDrawState * pDras = pDrac->m_pDras;
@@ -567,7 +606,7 @@ void PushDrawCall(FrDrawContext * pDrac, FrDrawCallBuffer * pDrcallbuf)
 	{
 	case DRBUFK_Font:
 		{
-			iVert = g_Fvbuf.m_cFvert;
+			iVert = g_fvbuf.m_cFvert;
 
 			FrTexture * pTex = pDrac->m_fontman.m_aFont[pDras->m_fontd.m_fontk].m_pTex;
 			if (pTex)
@@ -579,26 +618,137 @@ void PushDrawCall(FrDrawContext * pDrac, FrDrawCallBuffer * pDrcallbuf)
 		}
 
 	case DRBUFK_Sprite:
-		iVert = g_Vbuf.m_cVert;
+		iVert = g_vbuf.m_cVert;
+		iTex = pDras->m_iTexSprite;
 		break;
 	}
 
 	if (pDrcallbuf->m_cDrcall)
 	{
 		FrDrawCall * pDrcallTail = &pDrcallbuf->m_aDrcall[pDrcallbuf->m_cDrcall-1];
-		if (iVert == pDrcallTail->m_iVertBegin)
+		pDrcallTail->m_iVertEnd = CVertFromDrbufk(pDrcallTail->m_drbufk);
+
+		if (pDrcallTail->m_iVertEnd == pDrcallTail->m_iVertBegin)
 		{
 			// no verts with this draw state - just push the new settings into the active draw call
 
 			SetDrawCallState(pDras, pDrcallTail, iVert, iTex);
 			return;
 		}
-
-		pDrcallTail->m_iVertEnd = iVert;
 	}
 
 	AppendDrawCall(pDrac, pDrcallbuf, iVert, iTex);
 }
+
+inline void FillOutSpriteVert (
+	f32 x, f32 y, 
+	f32 u, f32 v, 
+	FrColorVec * pColvec,
+	FrVertexBuffer * pVbuf)
+{
+	FrVertex * pVert = &pVbuf->m_aVert[pVbuf->m_cVert];
+	++pVbuf->m_cVert;
+
+	pVert->m_x = x;
+	pVert->m_y = y;
+
+	pVert->m_u = u;
+	pVert->m_v = v;
+
+	pVert->m_r = pColvec->m_x;
+	pVert->m_g = pColvec->m_y;
+	pVert->m_b = pColvec->m_z;
+	pVert->m_a = pColvec->m_w;
+}
+
+FROG_CALL void Frog_DrawSprite(FrDrawContext * pDrac, FrTexture * pTex, FrRect * pRectPos,  FrRect * pRectUv, FrColorVec * pColvec)
+{
+	Frog_SetSpriteTexture(pDrac, pTex);
+	Frog_PushDrawCallIfChanged(pDrac, DRBUFK_Sprite);
+
+	FrVertexBuffer * pVbuf = &g_vbuf;
+	if (pVbuf->m_cVert + 4 >= FR_DIM(pVbuf->m_aVert))
+		return;
+
+	f32 xMin = pRectPos->m_posMin.m_x;
+	f32 yMin = pRectPos->m_posMin.m_y;
+	f32 xMax = pRectPos->m_posMax.m_x;
+	f32 yMax = pRectPos->m_posMax.m_y;
+
+	f32 uMin = pRectUv->m_posMin.m_x;
+	f32 vMin = pRectUv->m_posMin.m_y;
+	f32 uMax = pRectUv->m_posMax.m_x;
+	f32 vMax = pRectUv->m_posMax.m_y;
+	FillOutSpriteVert(xMin, yMax,
+				uMin, vMax,	
+				pColvec,
+				pVbuf);
+	FillOutSpriteVert(xMax, yMax,
+				uMax, vMax,	
+				pColvec,
+				pVbuf);
+	FillOutSpriteVert(xMax, yMin,
+				uMax, vMin,	
+				pColvec,
+				pVbuf);
+	FillOutSpriteVert(xMin, yMin,
+				uMin, vMin,	
+				pColvec,
+				pVbuf);
+
+}
+
+void Frog_FlushSpriteVerts(FrDrawContext * pDrac, int iTex, int iVertBegin, int iVertEnd)
+{
+	FrVertexBuffer * pVbuf = &g_vbuf;
+
+	// push orthographic projection
+	glPushMatrix();
+	glLoadIdentity();
+
+	// set up shader
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	FR_ASSERT(pDrac != nullptr, "NULL GContext in flushVerts");
+
+	FrShaderManager * pShman = &pDrac->m_shman;
+	BeginShader(pShman, pShman->m_mpCoreshkShhand[CORESHK_Sprite]);
+
+	FrVertex * aVert = pVbuf->m_aVert;
+	FrTexture * pTex = NULL;
+	
+	if (iTex > 0)
+	{
+		pTex = &s_aryTex[iTex];
+		SetShaderParam(pShman->m_mpCoreshkIParamTex[CORESHK_Sprite], pTex, 0);
+	}
+
+	glVertexPointer(3, GL_FLOAT, sizeof(FrVertex), &aVert[iVertBegin].m_x);
+	glEnableClientState(GL_VERTEX_ARRAY);
+			
+	glColorPointer(4, GL_FLOAT, (s32)sizeof(FrVertex), &aVert[iVertBegin].m_r);
+	glEnableClientState(GL_COLOR_ARRAY);
+
+	glClientActiveTexture(GL_TEXTURE0);
+	glTexCoordPointer(2, GL_FLOAT, (s32)sizeof(FrVertex), &aVert[iVertBegin].m_u);
+	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	glDrawArrays(GL_QUADS, 0, iVertEnd - iVertBegin);
+
+	if (pTex)
+	{
+		glDisable(pTex->m_druTarget);
+	}
+
+	glDisableClientState(GL_VERTEX_ARRAY);
+	glDisableClientState(GL_COLOR_ARRAY);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	EndShader();
+
+	glPopMatrix();
+}	
+
 
 void SubmitDrawCalls(FrDrawContext * pDrac, FrDrawCallBuffer * pDrcallbuf)
 {
@@ -622,17 +772,17 @@ void SubmitDrawCalls(FrDrawContext * pDrac, FrDrawCallBuffer * pDrcallbuf)
 		switch (pDrcall->m_drbufk)
 		{
 		case DRBUFK_Font:
-
 			Frog_FlushFontVerts(pDrac, pDrcall->m_iVertBegin, pDrcall->m_iVertEnd);
 			break;
 
 		case DRBUFK_Sprite:
+			Frog_FlushSpriteVerts(pDrac, pDrcall->m_iTex, pDrcall->m_iVertBegin, pDrcall->m_iVertEnd);
 			break;
 		}
 	}
 
-	g_Fvbuf.m_cFvert = 0;
-	g_Vbuf.m_cVert = 0;
+	g_fvbuf.m_cFvert = 0;
+	g_vbuf.m_cVert = 0;
 	pDrcallbuf->m_cDrcall = 0;
 
 	FTryInitDrawState(pDrac->m_pDras);
@@ -643,6 +793,22 @@ void SubmitDrawCalls(FrDrawContext * pDrac, FrDrawCallBuffer * pDrcallbuf)
 void Frog_FlushDrawCalls(FrDrawContext * pDrac)
 {
 	SubmitDrawCalls(pDrac, &g_drcallbuf);
+}
+
+FROG_CALL void Frog_SetSpriteTexture(FrDrawContext * pDrac, FrTexture * pTex)
+{
+	int iTex = -1;
+	if (pTex)
+	{
+		iTex = pTex->m_iTex;
+	}
+		
+	FrDrawState * pDras = pDrac->m_pDras;
+	if (pDras->m_iTexSprite == iTex)
+		return;
+
+	pDras->m_fNeedsNewCall = true;
+	pDras->m_iTexSprite = iTex;
 }
 
 FROG_CALL void Frog_SetScissor(FrDrawContext * pDrac, s16 xScissor, s16 yScissor, s16 dXScissor, s16 dYScissor)
@@ -670,7 +836,7 @@ FROG_CALL void Frog_DisableScissor(FrDrawContext * pDrac)
 	FrDrawState * pDras = pDrac->m_pDras;
 	if (pDras->m_fUseScissor)
 	{
-		pDras->m_fUseScissor = true;
+		pDras->m_fUseScissor = false;
 		pDras->m_fNeedsNewCall = true;
 	}
 }
@@ -679,8 +845,10 @@ bool FTryInitDrawState(FrDrawState * pDras)
 {
 	InitFontd(&pDras->m_fontd);
 	pDras->m_drbufk = DRBUFK_Font;
-	pDras->m_fUseScissor = false;
 	pDras->m_fNeedsNewCall = true;
+	pDras->m_iTexSprite = -1;
+
+	pDras->m_fUseScissor = false;
 	pDras->m_xScissor = SHRT_MIN;
 	pDras->m_yScissor = SHRT_MIN;
 	pDras->m_dXScissor = SHRT_MAX;
@@ -693,8 +861,8 @@ bool Frog_FTryStaticInitDrawContext(FrDrawContext * pDrac)
 	if (!FTryStaticInitShaderManager(&pDrac->m_shman))
 		return false;
 
-	g_Fvbuf.m_cFvert = 0;
-	g_Vbuf.m_cVert = 0;
+	g_fvbuf.m_cFvert = 0;
+	g_vbuf.m_cVert = 0;
 	g_drcallbuf.m_cDrcall = 0;
 
 	return true;
@@ -937,7 +1105,7 @@ void CreateVerts(FrFontManager * pFontman , FrDrawState * pDras, FrFontVertexBuf
 
 void Frog_FlushFontVerts(FrDrawContext * pDrac, int iVertBegin, int iVertEnd)
 {
-	FrFontVertexBuffer * pFvbuf = &g_Fvbuf;
+	FrFontVertexBuffer * pFvbuf = &g_fvbuf;
 
 	// push orthographic projection
 	glPushMatrix();
@@ -1004,7 +1172,7 @@ FROG_CALL void Frog_DrawTextRaw(FrDrawContext * pDrac, FrVec2 pos, const char * 
 
 	// draw characters to the right. pos is the left side baseline
 
-	CreateVerts(&pDrac->m_fontman, pDrac->m_pDras, &g_Fvbuf, pos, pCoz);
+	CreateVerts(&pDrac->m_fontman, pDrac->m_pDras, &g_fvbuf, pos, pCoz);
 }
 
 FrVec2 DXDYExtentsFromAWch(FrDrawContext * pDrac, const char * pCoz)
@@ -1116,7 +1284,7 @@ FROG_CALL void Frog_DrawChar(FrDrawContext * pDrac, u32 wch, const FrRect * pRec
 	if (pGlyph == nullptr)
 		return;	
 
-	FrFontVertexBuffer * pFvbuf = &g_Fvbuf;
+	FrFontVertexBuffer * pFvbuf = &g_fvbuf;
 	if (pFvbuf->m_cFvert + 8 >= FR_DIM(pFvbuf->m_aFvert))
 		return;
 
@@ -1237,7 +1405,6 @@ FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworl
 
 FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoom * pRoom, FrVec2 posUL, float rRGB)
 {
-	Frog_PushDrawCallIfChanged(pDrac, DRBUFK_Font);
 
 	FrRect rect;
 	int dX = pRoom->m_dX;
@@ -1247,6 +1414,57 @@ FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrR
 	FrDrawState * pDras = pDrac->m_pDras;
 	float gCharSizePrev = pDras->m_fontd.m_gCharSize;
 	pDras->m_fontd.m_gCharSize = ceilf(dYCharPixel * 0.85f);
+
+	// draw sprite room first
+
+	if (pTworld->m_pTexSprite)
+	{
+		FrColorVec colvecWhite = Frog_ColvecCreate(Frog_ColCreate(0xFFFFFFFF));
+		FrTexture * pTex = pTworld->m_pTexSprite;
+
+		Frog_PushDrawCallIfChanged(pDrac, DRBUFK_Sprite);
+
+		for (int y = 0; y < pRoom->m_dY; ++y)
+		{
+			f32 yMax = posUL.m_y + (y * dYCharPixel);
+			rect.m_posMax.m_y = yMax;
+			rect.m_posMin.m_y = yMax - dYCharPixel;
+
+			for (int x = 0; x < pRoom->m_dX; ++x)
+			{
+				f32 xMin = posUL.m_x + (x * dXCharPixel);
+				rect.m_posMin.m_x = xMin;
+				rect.m_posMax.m_x = xMin + dXCharPixel;
+
+				int iCell = x + (y * dX);
+				FrScreenTile * pTile = &pRoom->m_mpICellTileEnv[iCell];
+				ENTID entid = pRoom->m_mpICellEntid[iCell];
+
+				if (pTile->m_iSptile >= 0)
+				{
+					FrSpriteTile * pSptile = &pTworld->m_tmap.m_aSptile[pTile->m_iSptile];
+					FrRect rectUv = Frog_RectCreate(pSptile->m_uMin, pSptile->m_vMin, pSptile->m_uMax, pSptile->m_vMax);
+					Frog_DrawSprite(pDrac, pTex, &rect, &rectUv, &colvecWhite);
+				}
+
+				if (entid != ENTID_Nil)
+				{
+					FrEntity * pEnt = &pTworld->m_aEnt[entid];
+					FrScreenTile * pTileEnt = &pTworld->m_tmap.m_mpChTile[pEnt->m_iTile];
+
+					int iSptileEnt = pTileEnt->m_iSptile;
+					if (iSptileEnt >= 0)
+					{
+						FrSpriteTile * pSptile = &pTworld->m_tmap.m_aSptile[iSptileEnt];
+						FrRect rectUv = Frog_RectCreate(pSptile->m_uMin, pSptile->m_vMin, pSptile->m_uMax, pSptile->m_vMax);
+						Frog_DrawSprite(pDrac, pTex, &rect, &rectUv, &colvecWhite);
+					}
+				}
+			}
+		}
+	}
+
+	Frog_PushDrawCallIfChanged(pDrac, DRBUFK_Font);
 
 	for (int y = 0; y < pRoom->m_dY; ++y)
 	{
@@ -1295,13 +1513,23 @@ FROG_CALL void Frog_SetRoomTiles(FrRoom * pRoom, FrTileMap * pTmap, const char *
 	}
 }
 
-FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg, u8 ftile)
+FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg, s16 iSptile, u8 ftile)
 {
 	FrScreenTile * pTile = &pTmap->m_mpChTile[ch];
 	pTile->m_wch = wchOut;
 	pTile->m_colFg = colFg;
 	pTile->m_colBg = colBg;
+	pTile->m_iSptile = iSptile;
 	pTile->m_ftile = ftile;
+}
+
+FROG_CALL void Frog_SetSpriteTile(FrTileMap * pTmap, s16 iSptile, f32 uMin, f32 vMin, f32 uMax, f32 vMax)
+{
+	FrSpriteTile * pSptile = &pTmap->m_aSptile[iSptile];
+	pSptile->m_uMin = uMin;
+	pSptile->m_vMin = vMin;
+	pSptile->m_uMax = uMax;
+	pSptile->m_vMax = vMax;
 }
 
 FROG_CALL void Frog_InitCellContents(ENTID * aEntid, int cEntidMax, FrCellContents * pCellc)
@@ -1403,6 +1631,7 @@ FROG_CALL void Frog_InitTileWorld(FrTileWorld * pTworld)
 	InitializeFreeRoster(&pTworld->m_cEntAllocated, (s32*)pTworld->m_aEntidFree, FR_DIM(pTworld->m_aEntidFree));
 	InitializeFreeRoster(&pTworld->m_cRoomAllocated, (s32*)pTworld->m_aRoomidFree, FR_DIM(pTworld->m_aRoomidFree));
 	pTworld->m_nGenRoom = 1;
+	pTworld->m_pTexSprite = NULL;
 }
 
 FROG_CALL ENTID Frog_EntidAllocate(FrTileWorld * pTworld)

@@ -42,11 +42,21 @@ typedef struct RoomDefinition_t // tag = rmdef
 	RoomTransition		m_aRmtrans[6];
 } RoomDefinition;
 
+typedef struct SpriteDefinition_t //tag = spdef
+{
+	float				m_uMin;
+	float				m_vMin;
+	float				m_uMax;
+	float				m_vMax;
+	const char *		m_pChzName;
+} SpriteDefinition;
+
 typedef struct TileDefinition_t // tag = tiledef
 {
 	char				m_ch;
 	FrColor				m_colFg;
 	FrColor				m_colBg;
+	s16					m_iSpdef;
 	u8					m_grftile;
 } TileDefinition;
 
@@ -54,6 +64,7 @@ typedef struct RoomLibrary_t // tag = rmlib
 {
 	RoomDefinition **	m_apRmdef;
 	TileDefinition *	m_aTiledef;
+	SpriteDefinition *	m_aSpdef;
 } RoomLibrary;
 
 

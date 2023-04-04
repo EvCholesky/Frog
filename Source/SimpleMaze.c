@@ -266,14 +266,14 @@ void InitSimpleMaze(SimpleMaze * pMaze)
 
 	FrTileMap * pTmap = &pMaze->m_tworld.m_tmap;
 	//Frog_SetTile(&pMaze->m_tmap, 'W', L'▓', colWallFg, colWallBg);
-	Frog_SetTile(pTmap, 'W', 'W', colWallFg, colWallBg, FTILE_None);
-	Frog_SetTile(pTmap, 'S', 'S', colWallFg, colWallBg, FTILE_None);
-	Frog_SetTile(pTmap, 'E', 'E', colWallFg, colWallBg, FTILE_None);
-	Frog_SetTile(pTmap, 'L', 'L', colLavaFg, colLavaBg, FTILE_None);
-	Frog_SetTile(pTmap, '.', ' ', colGrassFg, colGrassBg, FTILE_None);
-	Frog_SetTile(pTmap, '_', ' ', colPathFg, colPathBg, FTILE_None);
-	Frog_SetTile(pTmap, 'C', 'C', colItemFg, colItemBg, FTILE_None);
-	Frog_SetTile(pTmap, '@', '@', colItemFg, colItemBg, FTILE_None);
+	Frog_SetTile(pTmap, 'W', 'W', colWallFg, colWallBg, -1, FTILE_None);
+	Frog_SetTile(pTmap, 'S', 'S', colWallFg, colWallBg, -1, FTILE_None);
+	Frog_SetTile(pTmap, 'E', 'E', colWallFg, colWallBg, -1, FTILE_None);
+	Frog_SetTile(pTmap, 'L', 'L', colLavaFg, colLavaBg, -1, FTILE_None);
+	Frog_SetTile(pTmap, '.', ' ', colGrassFg, colGrassBg, -1, FTILE_None);
+	Frog_SetTile(pTmap, '_', ' ', colPathFg, colPathBg, -1, FTILE_None);
+	Frog_SetTile(pTmap, 'C', 'C', colItemFg, colItemBg, -1, FTILE_None);
+	Frog_SetTile(pTmap, '@', '@', colItemFg, colItemBg, -1, FTILE_None);
 
 	pMaze->m_xScr = s_xStart;
 	pMaze->m_yScr = s_yStart;
