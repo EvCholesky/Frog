@@ -198,14 +198,29 @@ void DumpSpriteDefinition(DumpContext * pDctx, const SpriteDefinition * pSpdef)
 
 	static float g_dXTex = 512.0f;
 	static float g_dYTex = 512.0f;
-	Freb_Printf(&pDctx->m_freb, "{ UFROMPX(%d), VFROMPX(%d), UFROMPX(%d), VFROMPX(%d), \"%s\"", 
+	Freb_Printf(&pDctx->m_freb, "{ UFROMPX(%d), VFROMPX(%d), UFROMPX(%d), VFROMPX(%d),", 
 			(int)rintf(pSpdef->m_uMin * g_dXTex),
 			(int)rintf(pSpdef->m_vMin * g_dYTex),
 			(int)rintf(pSpdef->m_uMax * g_dXTex),
-			(int)rintf(pSpdef->m_vMax * g_dYTex),
-			pSpdef->m_pChzName);
+			(int)rintf(pSpdef->m_vMax * g_dYTex));
 
-	Freb_Printf(&pDctx->m_freb, "},");
+	if(pSpdef->m_grfsprite == FTILE_None)
+	{
+		Freb_AppendChz(&pDctx->m_freb, " FSPRITE_None,");
+	}
+	else
+	{
+		const char * pChzFormat = " FSPRITE_%s,";
+		for (int fsprite = 0x1; fsprite && fsprite <= FSPRITE_All; fsprite = fsprite << 1)
+		{
+			if (fsprite & pSpdef->m_grfsprite)
+			{
+				Freb_Printf(&pDctx->m_freb, pChzFormat, PChzFromFSprite(fsprite));
+				pChzFormat = "|FSPRITE_%s,";
+			}
+		}
+	}
+	Freb_Printf(&pDctx->m_freb, " \"%s\"},", pSpdef->m_pChzName);
 
 	fprintf(pDctx->m_pFile, "%s\n", pDctx->m_freb.m_pChzMin);
 	Freb_Clear(&pDctx->m_freb);
@@ -224,7 +239,7 @@ void DumpTileDefinition(DumpContext * pDctx, const TileDefinition * pTiledef)
 	else
 	{
 		const char * pChzFormat = "FTILE_%s";
-		for (int ftile = 0x1; ftile && ftile < FTILE_All; ftile = ftile << 1)
+		for (int ftile = 0x1; ftile && ftile <= FTILE_All; ftile = ftile << 1)
 		{
 			if (ftile & pTiledef->m_grftile)
 			{
@@ -268,7 +283,7 @@ void DumpRoomLibrary(DumpContext * pDctx, const RoomLibrary * pRmlib)
 			break;
 		DumpSpriteDefinition(pDctx, pSpdef);
 	}
-	DumpNamedValue(pDctx, "{ 0, 0, 0, 0, NULL}", "");
+	DumpNamedValue(pDctx, "{ 0, 0, 0, 0, FSPRITE_None, NULL}", "");
 	DumpClose(pDctx, "};\n");
 
 	DumpLine(pDctx, "static TileDefinition s_aTiledef[] = ");
@@ -807,7 +822,7 @@ void InitWorldMaze(World * pWorld)
 		if (pSpdef->m_pChzName == NULL)
 			break;
 
-		Frog_SetSpriteTile(pTmap, iSpdef, pSpdef->m_uMin, pSpdef->m_vMin, pSpdef->m_uMax, pSpdef->m_vMax);
+		Frog_SetSpriteTile(pTmap, iSpdef, pSpdef->m_uMin, pSpdef->m_vMin, pSpdef->m_uMax, pSpdef->m_vMax, pSpdef->m_grfsprite);
 	}
 
 	for (int iTiledef = 0; ; ++iTiledef)

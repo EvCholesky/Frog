@@ -39,6 +39,29 @@ FROG_CALL const char * PChzFromFTile(FTILE ftile)
 	return "Unknown";
 }
 
+FROG_CALL const char * PChzFromFSprite(FSPRITE fsprite)
+{
+	static const char * s_mpFSpritePChz[] =
+	{
+		"InsideCorner",
+	};
+	FR_CASSERT((0x1 << FR_DIM(s_mpFSpritePChz)) -1 == FSPRITE_All, "missing FSPRITE string");
+	if (fsprite == FSPRITE_None)
+		return "None";
+
+	for (int iFsprite = 0; iFsprite < FR_DIM(s_mpFSpritePChz); ++iFsprite) 
+	{
+		if ((fsprite & (0x1 << iFsprite)) != 0)
+		{
+			FR_ASSERT(fsprite == (0x1 << iFsprite), "single flag expected in FSPRITE parameter");
+			return s_mpFSpritePChz[iFsprite];
+		}
+	}
+
+	return "Unknown";
+}
+
+
 struct  FrDrawCall // tag = drcall
 {
 	int			m_iVertBegin;
@@ -1408,6 +1431,7 @@ FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrR
 
 	FrRect rect;
 	int dX = pRoom->m_dX;
+	int dY = pRoom->m_dY;
 	float dXCharPixel = pRoom->m_dXCharPixel;
 	float dYCharPixel = pRoom->m_dYCharPixel;
 
@@ -1424,13 +1448,13 @@ FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrR
 
 		Frog_PushDrawCallIfChanged(pDrac, DRBUFK_Sprite);
 
-		for (int y = 0; y < pRoom->m_dY; ++y)
+		for (int y = 0; y < dY; ++y)
 		{
 			f32 yMax = posUL.m_y + (y * dYCharPixel);
 			rect.m_posMax.m_y = yMax;
 			rect.m_posMin.m_y = yMax - dYCharPixel;
 
-			for (int x = 0; x < pRoom->m_dX; ++x)
+			for (int x = 0; x < dX; ++x)
 			{
 				f32 xMin = posUL.m_x + (x * dXCharPixel);
 				rect.m_posMin.m_x = xMin;
@@ -1442,9 +1466,95 @@ FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrR
 
 				if (pTile->m_iSptile >= 0)
 				{
+					int iSptile = pTile->m_iSptile;
 					FrSpriteTile * pSptile = &pTworld->m_tmap.m_aSptile[pTile->m_iSptile];
 					FrRect rectUv = Frog_RectCreate(pSptile->m_uMin, pSptile->m_vMin, pSptile->m_uMax, pSptile->m_vMax);
-					Frog_DrawSprite(pDrac, pTex, &rect, &rectUv, &colvecWhite);
+
+					int xLeft = Frog_NMax(0, x - 1);
+					int xRight = Frog_NMin(dX, x + 1);
+					int yUp = Frog_NMin(dY, y + 1);
+					int yDown = Frog_NMax(0, y - 1);
+					int iSptileUp = pRoom->m_mpICellTileEnv[x + (yUp * dX)].m_iSptile;
+					int iSptileDown = pRoom->m_mpICellTileEnv[x + (yDown * dX)].m_iSptile;
+					int iSptileLeft = pRoom->m_mpICellTileEnv[xLeft + (y * dX)].m_iSptile;
+					int iSptileRight = pRoom->m_mpICellTileEnv[xRight + (y * dX)].m_iSptile;
+					int iSptileUL = pRoom->m_mpICellTileEnv[xLeft + (yUp * dX)].m_iSptile;
+					int iSptileUR = pRoom->m_mpICellTileEnv[xRight + (yUp * dX)].m_iSptile;
+					int iSptileDL = pRoom->m_mpICellTileEnv[xLeft + (yDown * dX)].m_iSptile;
+					int iSptileDR = pRoom->m_mpICellTileEnv[xRight + (yDown * dX)].m_iSptile;
+
+					int diSpriteUp = (int)(iSptileUp != iSptile) * 2;
+					int diSpriteDown = (int)(iSptileDown != iSptile) * 2;
+					int diSpriteLeft = (int)(iSptileLeft != iSptile) * 1;
+					int diSpriteRight = (int)(iSptileRight != iSptile) * 1;
+					int diSpriteUL = (int)((diSpriteUp + diSpriteLeft == 0) & (iSptileUL != iSptile)) * 4;
+					int diSpriteUR = (int)((diSpriteUp + diSpriteRight == 0) & (iSptileUR != iSptile)) * 4;
+					int diSpriteDL = (int)((diSpriteDown + diSpriteLeft == 0) & (iSptileDL != iSptile)) * 4;
+					int diSpriteDR = (int)((diSpriteDown + diSpriteRight == 0) & (iSptileDR != iSptile)) * 4;
+
+					if ((pSptile->m_grfsprite & FSPRITE_InsideCorner) == 0 ||
+						(diSpriteUp + diSpriteDown + diSpriteLeft + diSpriteRight == 0))
+					{
+						Frog_DrawSprite(pDrac, pTex, &rect, &rectUv, &colvecWhite);
+					}
+					else
+					{
+						int iSptileUL = diSpriteUp + diSpriteLeft + diSpriteUL;
+						int iSptileUR = diSpriteUp + diSpriteRight + diSpriteUR;
+						int iSptileDL = diSpriteDown + diSpriteLeft + diSpriteDL;
+						int iSptileDR = diSpriteDown + diSpriteRight + diSpriteDR;
+
+						float dUTile = 32.0f / 512.0f;
+						float dUHalf = 16.0f / 512.0f;
+						float dVHalf = 16.0f / 512.0f;
+
+						float xMin = rect.m_posMin.m_x;
+						float yMin = rect.m_posMin.m_y;
+						float xMax = rect.m_posMax.m_x;
+						float yMax = rect.m_posMax.m_y;
+						float xMid = xMin + 0.5f * (xMax - xMin);
+						float yMid = yMin + 0.5f * (yMax - yMin);
+
+						float uMin = rectUv.m_posMin.m_x;
+						float vMin = rectUv.m_posMin.m_y;
+						float uMax = rectUv.m_posMax.m_x;
+						float vMax = rectUv.m_posMax.m_y;
+						float uMid = uMin + 0.5f * (uMax - uMin);
+						float vMid = vMin + 0.5f * (vMax - vMin);
+
+						FrRect rectPosUL = Frog_RectCreate(xMin, yMid, xMid, yMax);
+						FrRect rectUvUL = Frog_RectCreate(
+													uMin + iSptileUL * dUTile, 
+													vMid,
+													uMid + iSptileUL * dUTile,
+													vMax );
+						Frog_DrawSprite(pDrac, pTex, &rectPosUL, &rectUvUL, &colvecWhite);
+
+						FrRect rectPosUR = Frog_RectCreate(xMid, yMid, xMax, yMax);
+						FrRect rectUvUR = Frog_RectCreate(
+													uMid + iSptileUR * dUTile, 
+													vMid,
+													uMax + iSptileUR * dUTile,
+													vMax );
+						Frog_DrawSprite(pDrac, pTex, &rectPosUR, &rectUvUR, &colvecWhite);
+
+						FrRect rectPosDL = Frog_RectCreate(xMin, yMin, xMid, yMid);
+						FrRect rectUvDL = Frog_RectCreate(
+													uMin + iSptileDL * dUTile, 
+													vMin,
+													uMid + iSptileDL * dUTile,
+													vMid );
+						Frog_DrawSprite(pDrac, pTex, &rectPosDL, &rectUvDL, &colvecWhite);
+
+						FrRect rectPosDR = Frog_RectCreate(xMid, yMin, xMax, yMid);
+						FrRect rectUvDR = Frog_RectCreate(
+													uMid + iSptileDR * dUTile, 
+													vMin,
+													uMax + iSptileDR * dUTile,
+													vMid );
+						Frog_DrawSprite(pDrac, pTex, &rectPosDR, &rectUvDR, &colvecWhite);
+
+					}
 				}
 
 				if (entid != ENTID_Nil)
@@ -1523,13 +1633,14 @@ FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colF
 	pTile->m_ftile = ftile;
 }
 
-FROG_CALL void Frog_SetSpriteTile(FrTileMap * pTmap, s16 iSptile, f32 uMin, f32 vMin, f32 uMax, f32 vMax)
+FROG_CALL void Frog_SetSpriteTile(FrTileMap * pTmap, s16 iSptile, f32 uMin, f32 vMin, f32 uMax, f32 vMax, u8 grfsprite)
 {
 	FrSpriteTile * pSptile = &pTmap->m_aSptile[iSptile];
 	pSptile->m_uMin = uMin;
 	pSptile->m_vMin = vMin;
 	pSptile->m_uMax = uMax;
 	pSptile->m_vMax = vMax;
+	pSptile->m_grfsprite = grfsprite;
 }
 
 FROG_CALL void Frog_InitCellContents(ENTID * aEntid, int cEntidMax, FrCellContents * pCellc)

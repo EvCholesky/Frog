@@ -396,7 +396,7 @@ FROG_CALL void Frog_SetSpriteTexture(FrDrawContext * pDrac, FrTexture * pTex);
 FROG_CALL void Frog_SetScissor(FrDrawContext * pDrac, s16 xScissor, s16 yScissor, s16 dXScissor, s16 dYScissor);
 FROG_CALL void Frog_DisableScissor(FrDrawContext * pDrac);
 
-typedef enum FTILE
+typedef enum FTILE_t
 {
 	FTILE_None		= 0,
 	FTILE_Collide	= 1,
@@ -407,12 +407,23 @@ typedef enum FTILE
 
 FROG_CALL const char * PChzFromFTile(FTILE ftile);
 
+typedef enum FSPRITE_t
+{
+	FSPRITE_None			= 0,
+	FSPRITE_InsideCorner	= 1,
+
+	FSPRITE_All				= 1,
+} FSPRITE;
+
+FROG_CALL const char * PChzFromFSprite(FSPRITE fsprite);
+
 typedef struct FrSpriteTile_t // tag = sptile
 {
 	f32				m_uMin;
 	f32				m_vMin;
 	f32				m_uMax;
 	f32				m_vMax;
+	u8				m_grfsprite;
 } FrSpriteTile;
 
 typedef struct FrScreenTile_t // tag = tile
@@ -571,7 +582,7 @@ FROG_CALL void Frog_SetRoomTiles(FrRoom * pFroom, FrTileMap * pTmap, const char 
 FROG_CALL void Frog_SortEntityUpdateList(FrRoom * pRoom);
 
 FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char iTile, u32 wchOut, FrColor colFg,  FrColor colBg, s16 iSptile, u8 ftile);
-FROG_CALL void Frog_SetSpriteTile(FrTileMap * pTmap, s16 iSptile, f32 uMin, f32 vMin, f32 uMax, f32 vMax);
+FROG_CALL void Frog_SetSpriteTile(FrTileMap * pTmap, s16 iSptile, f32 uMin, f32 vMin, f32 uMax, f32 vMax, u8 grfsprite);
 FROG_CALL u8 Frog_FtileFromCell(FrRoom * pFroom, int xCell, int yCell);
 
 FROG_CALL ENTID Frog_EntidAllocate(FrTileWorld * pTworld);

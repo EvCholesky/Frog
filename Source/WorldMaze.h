@@ -48,6 +48,7 @@ typedef struct SpriteDefinition_t //tag = spdef
 	float				m_vMin;
 	float				m_uMax;
 	float				m_vMax;
+	u8					m_grfsprite;
 	const char *		m_pChzName;
 } SpriteDefinition;
 
