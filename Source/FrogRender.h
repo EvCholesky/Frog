@@ -457,6 +457,7 @@ enum { kCEntCellMax = 4 };			// number of tile entities that can be on the same 
 enum { kCEntWorldMax = 1024 };		// maximum number of tile entities active in the world
 enum { kCEntRoomMax = 120 };		// maximum number of entities per room
 enum { kCRoomWorldMax = 64 };		// maximum number of rooms in a world
+enum { kCChRoomNameMax = 80 };		// maximum number of characters in a room name
 
 enum // Entity UPdate Order
 {

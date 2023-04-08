@@ -3,7 +3,13 @@
 #include "FrogRender.h"
 
 typedef struct FrInput_t FrInput;
+typedef struct Editor_t Editor;
 
+typedef enum GAMEMODE_t
+{
+	GAMEMODE_Play,
+	GAMEMODE_Editor,
+} GAMEMODE;
 
 
 typedef enum TRANSK_t
@@ -24,11 +30,12 @@ typedef enum TRANSK_t
 }TRANSK;
 
 const char * PChzFromTransk(TRANSK transk);
+FROG_CALL const char ** PMpTranskPChz();
 
 typedef struct RoomTransition_t // tag = rmtrans
 {
 	TRANSK				m_transk;
-	const char *		m_pChzDest;
+	const char			m_pChzDest[kCChRoomNameMax];
 	int					m_dX;			// offset added to room when transitioning
 	int					m_dY;
 } RoomTransition;
@@ -147,6 +154,12 @@ typedef struct GameEntity_t // tag = gent
 
 } GameEntity;
 
+typedef enum EDITTOOL_t
+{
+	EDITTOOL_Tile,
+	EDITTOOL_Entity,
+} EDITTOOL;
+
 
 
 enum { kCEntityCellMax = 20 };
@@ -169,12 +182,21 @@ typedef struct World_t // tag = maze
 
 	//int					m_aCIik[IIK_Max];			// how many of each item do we have in our inventory
 	bool				m_fUpdateIsDirty;
+	GAMEMODE			m_gamemode;
+
+	Editor *			m_pEditor;
 
 } World;
 
 
+
 FROG_CALL bool FTryDumpRoomFile(const char * pChzFilename);
+FROG_CALL void SaveWorldInline(World * pWorld);
 
 FROG_CALL void InitWorldMaze(World * pWorld);
 FROG_CALL void UpdateWorldMaze(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32 dT);
+FROG_CALL void SetGameMode(World * pWorld, GAMEMODE gamemode);
+
+FROG_CALL void TransitionToRoom(World * pWorld, GameRoom * pGroom);
+FROG_CALL void CutToRoom(World * pWorld, GameRoom * pGroom);
 

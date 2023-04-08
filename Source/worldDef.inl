@@ -125,7 +125,7 @@ static SpriteDefinition s_aSpdef[] =
 	{ UFROMPX(64), VFROMPX(416), UFROMPX(96), VFROMPX(448), FSPRITE_InsideCorner, "path"},
 	{ UFROMPX(128), VFROMPX(448), UFROMPX(160), VFROMPX(480), FSPRITE_None, "rockwall"},
 	{ UFROMPX(160), VFROMPX(448), UFROMPX(192), VFROMPX(480), FSPRITE_None, "bush"},
-	{ UFROMPX(64), VFROMPX(352), UFROMPX(96), VFROMPX(384), FSPRITE_InsideCorner, "longgrass"},
+	{ UFROMPX(64), VFROMPX(384), UFROMPX(96), VFROMPX(416), FSPRITE_InsideCorner, "longgrass"},
 	{ UFROMPX(0), VFROMPX(384), UFROMPX(32), VFROMPX(416), FSPRITE_None, "racoon"},
 	{ 0, 0, 0, 0, FSPRITE_None, NULL},
 };

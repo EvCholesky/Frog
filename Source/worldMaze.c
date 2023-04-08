@@ -1,6 +1,7 @@
 #include "WorldMaze.h"
 
 #include "Common.h"
+#include "Editor.h"
 #include "FrogInput.h"
 #include "FrogRender.h"
 #include "FrogString.h"
@@ -34,7 +35,7 @@ void DumpRoomLibrary(DumpContext * pDctx, const RoomLibrary * pRmlib);
 static int s_cChComment = 60;
 static int s_cColTab = 4;
 
-const char * PChzFromTransk(TRANSK transk)
+FROG_CALL const char ** PMpTranskPChz()
 {
 	static const char * s_mpTranskPChz[] =
 	{
@@ -48,13 +49,19 @@ const char * PChzFromTransk(TRANSK transk)
 		"ReverseWorld",		//TRANSK_ReverseWorld,
 	};
 	FR_CASSERT(FR_DIM(s_mpTranskPChz) == TRANSK_Max, "missing TRANSK string");
+	return s_mpTranskPChz;
+}
+
+const char * PChzFromTransk(TRANSK transk)
+{
 	if (transk == TRANSK_Nil)
 		return "Nil";
 
 	if ((transk < TRANSK_Nil) | (transk >= TRANSK_Max))
 		return "Unknown";
 
-	return s_mpTranskPChz[transk];
+	const char ** pmpTranskPChz = PMpTranskPChz();
+	return pmpTranskPChz[transk];
 }
 	  
 void PadToColumn(FrEditBuffer * pFreb, char ch, int cColumn)
@@ -713,6 +720,22 @@ static void MoveAvatar(World * pWorld, GameEntity * pGent, int dX, int dY)
 	}
 }
 
+FROG_CALL void TransitionToRoom(World * pWorld, GameRoom * pGroom)
+{
+
+}
+
+FROG_CALL void CutToRoom(World * pWorld, GameRoom * pGroom)
+{
+	pWorld->m_roomt.m_pRoomPrev = NULL;
+	pWorld->m_roomt.m_pRoom = pGroom->m_pRoomFrog;
+	pWorld->m_roomt.m_r = 1.0f;
+	pWorld->m_roomt.m_roomtk = ROOMTK_None;
+
+	pWorld->m_pGroomCur = pGroom;
+
+}
+
 static GameEntity * PGentAllocate(World * pWorld, ENTK entk, int x, int y, char iTile)
 {
 	ENTID entid = Frog_EntidAllocate(&pWorld->m_tworld);
@@ -792,9 +815,29 @@ void UpdateRoomEntities(World * pWorld, FrRoom * pRoom, float dT)
 	}
 }
 
+FROG_CALL void SetGameMode(World * pWorld, GAMEMODE gamemode)
+{
+	if (pWorld->m_gamemode = gamemode)
+		return;
+
+	// leaving state
+
+	pWorld->m_gamemode = gamemode;
+
+	switch (gamemode)
+	{
+	
+	}
+}
+
 FrTexture * pTexSprite = NULL;
 void InitWorldMaze(World * pWorld)
 {
+	pWorld->m_xScr = 0;
+	pWorld->m_yScr = 0;
+	pWorld->m_gamemode = GAMEMODE_Play;
+	pWorld->m_pEditor = PEditorStaticInit();
+
 	RoomLibrary * pRmlib = &s_rmlib;
 /*
 	int cBXyMap = sizeof(ROOMID) * kDXMaze * kDYMaze;
@@ -866,8 +909,14 @@ void InitWorldMaze(World * pWorld)
 	pWorld->m_pGentAvatar = PGentAllocate(pWorld, ENTK_Avatar, 3, 3, 3);//'@');
 	Frog_AddToRoom(pWorld->m_pGroomCur->m_pRoomFrog, Frog_PEnt(pTworld, pWorld->m_pGentAvatar->m_entid), EUPO_Avatar);
 }
+FROG_CALL void SaveWorldInline(World * pWorld)
+{
+	const char * pChzFilename = "source\\worldDef.inl";
+	FTryDumpRoomFile(pChzFilename);
+	Frog_PostNote(&pWorld->m_noteq, NOTEK_LowPriority, "Wrote inline file '%s'", pChzFilename);
+}
 
-static void UpdateInput(World * pWorld, FrInput * pInput)
+static void UpdateInputPlay(World * pWorld, FrInput * pInput)
 {
 	Frog_PollInput(pInput);
 
@@ -885,31 +934,22 @@ static void UpdateInput(World * pWorld, FrInput * pInput)
 		case KEYCODE_ArrowLeft:		MoveAvatar(pWorld, pWorld->m_pGentAvatar, -1, 0);	break;
 		case KEYCODE_ArrowRight:	MoveAvatar(pWorld, pWorld->m_pGentAvatar, 1, 0);	break;
 
-		case KEYCODE_S:
-			{
-				if (pInev->m_finev & FINEV_Ctrl)
-				{
-					const char * pChzFilename = "source\\worldDef.inl";
-					FTryDumpRoomFile(pChzFilename);
-					Frog_PostNote(&pWorld->m_noteq, NOTEK_LowPriority, "Wrote inline file '%s'", pChzFilename);
-				}
-			}
+		case KEYCODE_F1:
+			SetGameMode(pWorld, GAMEMODE_Editor);
+			break;
 		}
 	}
 	Frog_ClearInputEvents(pInput->m_pInevfifo);
 }
 
-void UpdateWorldMaze(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32 dT)
+void UpdatePlayMode(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32 dT)
 {
 	FrVec2 s_posScreen = Frog_Vec2Create(10, 200);
-	FrVec2 posText = Frog_Vec2Create(10.0f, 80.0f);
-	FrVec2 posNoteQueue = Frog_Vec2Create(400.0f, 120.0f);
+	FrVec2 s_posText = Frog_Vec2Create(10.0f, 80.0f);
 
 	//char aCh[32];
 	//sprintf_s(aCh, FR_DIM(aCh), "$%d, %d keys", pWorld->m_aCIik[IIK_Coin], pWorld->m_aCIik[IIK_Key]);
-	Frog_DrawTextRaw(pDrac, posText, "test hud");
-
-	Frog_RenderNoteQueue(pDrac, &pWorld->m_noteq, posNoteQueue, dT);
+	Frog_DrawTextRaw(pDrac, s_posText, "test hud");
 
 	FrRoomTransition * pRoomt = &pWorld->m_roomt;
 	GameRoom * pGroomPrev = NULL;
@@ -932,7 +972,7 @@ void UpdateWorldMaze(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f3
 	Frog_RenderTransition(pDrac, &pWorld->m_tworld, pRoomt, s_posScreen);
 	Frog_DisableScissor(pDrac);
 
-	UpdateInput(pWorld, pInput);
+	UpdateInputPlay(pWorld, pInput);
 
 	if (pWorld->m_roomt.m_pRoomPrev)
 	{
@@ -946,4 +986,33 @@ void UpdateWorldMaze(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f3
 	Frog_SortEntityUpdateList(pGroomCur->m_pRoomFrog);
 
 	UpdateRoomEntities(pWorld, pGroomCur->m_pRoomFrog, dT);
+}
+
+void UpdateEditorMode(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32 dT) 
+{
+	FrVec2 s_posScreen = Frog_Vec2Create(10, 200);
+	Frog_RenderRoom(pDrac, &pWorld->m_tworld, pWorld->m_pGroomCur->m_pRoomFrog, s_posScreen, 1.0f);
+
+	UpdateInputEditor(pWorld, pInput);
+
+	UpdateEditorWindow(pWorld);
+}
+
+void UpdateWorldMaze(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32 dT)
+{
+	FrVec2 s_posNoteQueue = Frog_Vec2Create(400.0f, 120.0f);
+
+	switch (pWorld->m_gamemode)
+	{
+	case GAMEMODE_Play:
+		UpdatePlayMode(pWorld, pDrac, pInput, dT);
+		break;
+
+	case GAMEMODE_Editor:
+		UpdateEditorMode(pWorld, pDrac, pInput, dT);
+		break;
+	}
+
+	Frog_RenderNoteQueue(pDrac, &pWorld->m_noteq, s_posNoteQueue, dT);
+
 }

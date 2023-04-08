@@ -98,6 +98,11 @@ KEYCODE KeycodeFromGlfwKey(int nKey)
 
 static FrInputEventFifo s_inevfifo;
 
+static void GlfwMouseButtonCallback(GLFWwindow * pWindow, int nButton, int nAction, int nMods)
+{
+
+}
+
 static void GlfwKeyboardCallback(GLFWwindow * pWindow, int nKey, int nScancode, int nAction, int nMods)
 {
 	EDGES edges;
@@ -138,6 +143,8 @@ void Frog_InitInput(FrInput * pInput, FrPlatform * pPlat)
 	pInput->m_pInevfifo = &s_inevfifo;
 	Frog_InitEventFifo(pInput->m_pInevfifo);
 	glfwSetKeyCallback(pPlat->m_pGlfwin, GlfwKeyboardCallback);
+
+	glfwSetMouseButtonCallback(pPlat->m_pGlfwin, GlfwMouseButtonCallback);
 }
 
 FROG_CALL void Frog_PollInput(FrInput * pInput)

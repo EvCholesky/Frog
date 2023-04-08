@@ -766,6 +766,7 @@ void Frog_FlushSpriteVerts(FrDrawContext * pDrac, int iTex, int iVertBegin, int 
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_COLOR_ARRAY);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	glDisable(GL_BLEND);
 
 	EndShader();
 
@@ -1164,12 +1165,12 @@ void Frog_FlushFontVerts(FrDrawContext * pDrac, int iVertBegin, int iVertEnd)
 	glColorPointer(4, GL_FLOAT, (s32)sizeof(FrFontVertex), &aFvert[iVertBegin].m_r);
 	glEnableClientState(GL_COLOR_ARRAY);
 
-	glClientActiveTexture(GL_TEXTURE0);
-	glTexCoordPointer(2, GL_FLOAT, (s32)sizeof(FrFontVertex), &aFvert[iVertBegin].m_u);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-
 	glClientActiveTexture(GL_TEXTURE1);
 	glTexCoordPointer(4, GL_FLOAT, (s32)sizeof(FrFontVertex), &aFvert[iVertBegin].m_uMin);
+	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	glClientActiveTexture(GL_TEXTURE0);
+	glTexCoordPointer(2, GL_FLOAT, (s32)sizeof(FrFontVertex), &aFvert[iVertBegin].m_u);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
 	glDrawArrays(GL_QUADS, 0, iVertEnd - iVertBegin);
@@ -1182,6 +1183,7 @@ void Frog_FlushFontVerts(FrDrawContext * pDrac, int iVertBegin, int iVertEnd)
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_COLOR_ARRAY);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	glDisable(GL_BLEND);
 
 	EndShader();
 

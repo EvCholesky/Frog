@@ -4,6 +4,11 @@
 #include "FrogPlatform.h"
 #include "stdlib.h"
 
+#include "imgui.h"
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_opengl2.h"
+#include "GlWrapper.h"
+
 #define USE_WORLD_MAZE 1
 #define USE_ENTITIES 1
 
@@ -23,6 +28,9 @@ static const int s_dYWindow = 800;
 
 int main(int cpChzArg, const char * apChzArg[])
 {
+
+	// Initialize helper Platform and Renderer bindings (here we are using imgui_impl_win32 and imgui_impl_dx11)
+
 	static const int s_nHzTarget = 60;
 	if (!Frog_FTryInitPlatform(&g_plat, s_nHzTarget))
 		return 0;
@@ -31,6 +39,19 @@ int main(int cpChzArg, const char * apChzArg[])
 		return 0;
 
 	Frog_InitInput(&g_input, &g_plat);
+
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+	ImGui_ImplGlfw_InitForOpenGL(g_plat.m_pGlfwin, true);
+    ImGui_ImplOpenGL2_Init();
 
 	if (!Frog_FTryStaticInitDrawContext(&g_drac))
 		return 0;
@@ -59,6 +80,12 @@ int main(int cpChzArg, const char * apChzArg[])
 	{
 		Frog_ClearScreen(&g_plat);
 
+         // Feed inputs to dear imgui, start new frame
+
+        ImGui_ImplOpenGL2_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
 #if USE_WORLD_MAZE 
 		UpdateWorldMaze(&maze, &g_drac, &g_input, dTPrev);
 #elif USE_ENTITIES
@@ -68,6 +95,12 @@ int main(int cpChzArg, const char * apChzArg[])
 #endif
 
 		Frog_FlushDrawCalls(&g_drac);
+
+		ImGui::Render();
+		//Frog_ClearScreen(&g_plat);
+
+        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+
 		Frog_SwapBuffers(&g_plat);
 
 		Frog_WaitUntilFrameEnd(&g_plat.m_pltime, cTickPrev);
@@ -78,6 +111,8 @@ int main(int cpChzArg, const char * apChzArg[])
 		cTickPrev = cTickNew;
 	}
 
+    ImGui_ImplOpenGL2_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
 	Frog_ShutdownPlatform(&g_plat);
 	return 1;
 }
