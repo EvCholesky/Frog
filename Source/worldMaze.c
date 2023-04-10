@@ -711,6 +711,11 @@ static void MoveAvatar(World * pWorld, GameEntity * pGent, int dX, int dY)
 			Frog_RemoveFromRoom(pGroom->m_pRoomFrog, pEntAvatar);
 			Frog_AddToRoom(pGroomNext->m_pRoomFrog, pEntAvatar, EUPO_Avatar);
 
+			FrRoom * pRoomNextFrog = pGroomNext->m_pRoomFrog;
+			float xNewPx = xNew * pRoomNextFrog->m_dXCharPixel;
+			float yNewPx = yNew * pRoomNextFrog->m_dYCharPixel;
+			Frog_CameraSetLookAtClamped(&pWorld->m_tworld, pRoomNextFrog, &pWorld->m_tworld.m_cam, xNewPx, yNewPx);
+
 			Frog_PostNote(&pWorld->m_noteq, NOTEK_LowPriority, "Entered room %s", pGroomNext->m_pRmdef->m_pChzName);	
 			TranslateCurScreen(
 				pWorld, 
@@ -839,26 +844,22 @@ void InitWorldMaze(World * pWorld)
 	pWorld->m_pEditor = PEditorStaticInit();
 
 	RoomLibrary * pRmlib = &s_rmlib;
-/*
-	int cBXyMap = sizeof(ROOMID) * kDXMaze * kDYMaze;
-	pWorld->m_mpXyRoomid = (ROOMID *)malloc(cBXyMap);
-
-	for (int iRoom = 0; iRoom < kDXMaze * kDYMaze; ++iRoom)
-	{
-		pWorld->m_mpXyRoomid[iRoom] = ROOMID_Nil;
-	}
-	*/
-
-	//ZeroAB(pWorld->m_aCIik, sizeof(pWorld->m_aCIik));
 
 	Frog_InitNoteQueue(&pWorld->m_noteq, 16);
 	Frog_InitTileWorld(&pWorld->m_tworld);
+
+	static int s_dXyCharPixel = 64;
+	static float s_dXViewport = 800;
+	static float s_dYViewport = 600;
+	FrTileWorld * pTworld = &pWorld->m_tworld;
+	Frog_SetViewport(&pTworld->m_viewp, s_dXViewport, s_dYViewport, (float)s_dXyCharPixel, (float)s_dXyCharPixel);
+	pTworld->m_viewp.m_xyViewportMin = Frog_Vec2Create(10, 190);
 
 	pTexSprite = Frog_PTexLoad("Assets/sprites.png", true);
 	Frog_SetTextureFilteringNearest(pTexSprite);
 	pWorld->m_tworld.m_pTexSprite = pTexSprite;
 
-	FrTileMap * pTmap = &pWorld->m_tworld.m_tmap;
+	FrTileMap * pTmap = &pTworld->m_tmap;
 	for (int iSpdef = 0; ; ++iSpdef)
 	{
 		SpriteDefinition * pSpdef = &pRmlib->m_aSpdef[iSpdef];
@@ -885,7 +886,6 @@ void InitWorldMaze(World * pWorld)
 	ZeroAB(pWorld->m_mpRmidGroom, sizeof(pWorld->m_mpRmidGroom)); 
 	pWorld->m_rmidMax = (RMID)cRmdef;
 
-	static int s_dXyCharPixel = 64;
 	for (int iRmdef = 0; iRmdef < cRmdef; ++iRmdef)
 	{
 		RMID rmid = (RMID)iRmdef;
@@ -905,9 +905,14 @@ void InitWorldMaze(World * pWorld)
 	pWorld->m_pGroomCur = NULL;
 	SetCurRoom(pWorld, pGroomStarting);
 
-	FrTileWorld * pTworld = &pWorld->m_tworld;
-	pWorld->m_pGentAvatar = PGentAllocate(pWorld, ENTK_Avatar, 3, 3, 3);//'@');
-	Frog_AddToRoom(pWorld->m_pGroomCur->m_pRoomFrog, Frog_PEnt(pTworld, pWorld->m_pGentAvatar->m_entid), EUPO_Avatar);
+	GameEntity * pGentAvatar = PGentAllocate(pWorld, ENTK_Avatar, 3, 3, 3);//'@');
+	pWorld->m_pGentAvatar = pGentAvatar;
+	Frog_AddToRoom(pWorld->m_pGroomCur->m_pRoomFrog, Frog_PEnt(pTworld, pGentAvatar->m_entid), EUPO_Avatar);
+
+	FrRoom * pRoomNextFrog = pGroomStarting->m_pRoomFrog;
+	float xNewPx = pGentAvatar->m_x * pRoomNextFrog->m_dXCharPixel;
+	float yNewPx = pGentAvatar->m_y * pRoomNextFrog->m_dYCharPixel;
+	Frog_CameraSetLookAtClamped(&pWorld->m_tworld, pRoomNextFrog, &pWorld->m_tworld.m_cam, xNewPx, yNewPx);
 }
 FROG_CALL void SaveWorldInline(World * pWorld)
 {
@@ -968,8 +973,12 @@ void UpdatePlayMode(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32
 		Frog_SetTransition(pRoomt, ROOMTK_None, NULL, pRoomt->m_pRoom);
 	}
 
-	Frog_SetScissor(pDrac, 20, 136, 850, 650);
-	Frog_RenderTransition(pDrac, &pWorld->m_tworld, pRoomt, s_posScreen);
+	//Frog_SetScissor(pDrac, 20, 136, 850, 650);
+	FrViewport * pViewp = &pWorld->m_tworld.m_viewp;
+	float xScissorMin = pViewp->m_xyViewportMin.m_x;
+	float yScissorMin = pViewp->m_xyViewportMin.m_y;
+	Frog_SetScissor(pDrac, (s16)xScissorMin, (s16)yScissorMin, (s16)pViewp->m_dXyView.m_x, (s16)pViewp->m_dXyView.m_y);
+	Frog_RenderTransitionWithCamera(pDrac, &pWorld->m_tworld, pRoomt, s_posScreen);
 	Frog_DisableScissor(pDrac);
 
 	UpdateInputPlay(pWorld, pInput);
@@ -981,6 +990,13 @@ void UpdatePlayMode(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32
 
 		UpdateRoomEntities(pWorld, pRoomPrev, dT);
 	}
+
+	Frog_CameraPanToLookAt(
+						&pWorld->m_tworld, 
+						pWorld->m_pGroomCur->m_pRoomFrog, 
+						&pWorld->m_tworld.m_cam, 
+						pWorld->m_pGentAvatar->m_x * pViewp->m_dXyCell.m_x,  pWorld->m_pGentAvatar->m_y * pViewp->m_dXyCell.m_y, 
+						dT);
 
 	GameRoom * pGroomCur = pWorld->m_pGroomCur;
 	Frog_SortEntityUpdateList(pGroomCur->m_pRoomFrog);

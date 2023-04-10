@@ -160,8 +160,6 @@ typedef enum EDITTOOL_t
 	EDITTOOL_Entity,
 } EDITTOOL;
 
-
-
 enum { kCEntityCellMax = 20 };
 
 typedef struct World_t // tag = maze
@@ -180,7 +178,7 @@ typedef struct World_t // tag = maze
 	int					m_xScr;
 	int					m_yScr;
 
-	//int					m_aCIik[IIK_Max];			// how many of each item do we have in our inventory
+	//int				m_aCIik[IIK_Max];			// how many of each item do we have in our inventory
 	bool				m_fUpdateIsDirty;
 	GAMEMODE			m_gamemode;
 
@@ -188,6 +186,7 @@ typedef struct World_t // tag = maze
 
 } World;
 
+FROG_CALL void CellXyFromScreenXy(FrVec2 * pVecScreen, int * pX, int * pY);
 
 
 FROG_CALL bool FTryDumpRoomFile(const char * pChzFilename);

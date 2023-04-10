@@ -98,21 +98,8 @@ KEYCODE KeycodeFromGlfwKey(int nKey)
 
 static FrInputEventFifo s_inevfifo;
 
-static void GlfwMouseButtonCallback(GLFWwindow * pWindow, int nButton, int nAction, int nMods)
+static FINEV FinevFromMods(int nMods)
 {
-
-}
-
-static void GlfwKeyboardCallback(GLFWwindow * pWindow, int nKey, int nScancode, int nAction, int nMods)
-{
-	EDGES edges;
-	switch (nAction)
-	{
-		case GLFW_PRESS:	edges = EDGES_Press;	break;
-		case GLFW_RELEASE:	edges = EDGES_Release;	break;
-		default: return; // GLFW_REPEAT
-	}
-
 	u8 finev = FINEV_None;
 	if (nMods & GLFW_MOD_CONTROL)
 	{
@@ -128,11 +115,59 @@ static void GlfwKeyboardCallback(GLFWwindow * pWindow, int nKey, int nScancode, 
 	{
 		finev |= FINEV_Alt;
 	}
+
+	return (FINEV)finev;
+}
+
+static void GlfwMousePosCallback(GLFWwindow* pWindow, double xPos, double yPos)
+{
+	FrInputEvent * pInev = Frog_PInevPushNew(&s_inevfifo);
+	pInev->m_eventk = EVENTK_MousePos;
+	pInev->m_edges = EDGES_Off;
+	pInev->m_nDeviceId = FRDEVICE_Mouse;
+	pInev->m_finev = FINEV_None;
+	pInev->m_keycode = KEYCODE_Nil;
+	pInev->m_x = (float)xPos;
+	pInev->m_y = (float)yPos;
+}
+
+static void GlfwMouseButtonCallback(GLFWwindow * pWindow, int nButton, int nAction, int nMods)
+{
+	EDGES edges = EDGES_Off;
+	switch (nAction)
+	{
+		case GLFW_PRESS:	edges = EDGES_Press;	break;
+		case GLFW_RELEASE:	edges = EDGES_Release;	break;
+		default: return; // GLFW_REPEAT
+	}
+
+	FrInputEvent * pInev = Frog_PInevPushNew(&s_inevfifo);
+	pInev->m_eventk = EVENTK_MousePress;
+	pInev->m_edges = edges;
+	pInev->m_nDeviceId = FRDEVICE_Mouse;
+	pInev->m_finev = FinevFromMods(nMods);
+	pInev->m_keycode = (KEYCODE)(KEYCODE_MouseButton0 + nButton);
+	if (pInev->m_keycode > KEYCODE_MouseButtonLast)
+	{
+		pInev->m_keycode = KEYCODE_MouseButtonLast;
+	}
+}
+
+static void GlfwKeyboardCallback(GLFWwindow * pWindow, int nKey, int nScancode, int nAction, int nMods)
+{
+	EDGES edges;
+	switch (nAction)
+	{
+		case GLFW_PRESS:	edges = EDGES_Press;	break;
+		case GLFW_RELEASE:	edges = EDGES_Release;	break;
+		default: return; // GLFW_REPEAT
+	}
+
 	FrInputEvent * pInev = Frog_PInevPushNew(&s_inevfifo);
 	pInev->m_eventk = EVENTK_Keyboard;
 	pInev->m_edges = edges;
-	pInev->m_nDeviceId = 0;
-	pInev->m_finev = finev;
+	pInev->m_nDeviceId = FRDEVICE_Keyboard;
+	pInev->m_finev = FinevFromMods(nMods);
 	pInev->m_keycode = KeycodeFromGlfwKey(nKey);
 }
 
@@ -142,8 +177,9 @@ void Frog_InitInput(FrInput * pInput, FrPlatform * pPlat)
 
 	pInput->m_pInevfifo = &s_inevfifo;
 	Frog_InitEventFifo(pInput->m_pInevfifo);
-	glfwSetKeyCallback(pPlat->m_pGlfwin, GlfwKeyboardCallback);
 
+	glfwSetKeyCallback(pPlat->m_pGlfwin, GlfwKeyboardCallback);
+	glfwSetCursorPosCallback(pPlat->m_pGlfwin, GlfwMousePosCallback);
 	glfwSetMouseButtonCallback(pPlat->m_pGlfwin, GlfwMouseButtonCallback);
 }
 
@@ -170,6 +206,8 @@ FROG_CALL void Frog_InitInputEvent(FrInputEvent * pInev)
 	pInev->m_keycode = KEYCODE_Unknown;
 	pInev->m_nTextInput = 0;	
 	pInev->m_nDeviceId = 0;
+	pInev->m_x = 0.0f;
+	pInev->m_y = 0.0f;
 }
 
 FROG_CALL FrInputEvent * Frog_PInevFront(FrInputEventFifo * pInevfifo)
@@ -185,9 +223,9 @@ FROG_CALL FrInputEvent * Frog_PInevPushNew(FrInputEventFifo * pInevfifo)
 	int iEvent = (pInevfifo->m_iInevFront + pInevfifo->m_cInev) % FR_DIM(pInevfifo->m_aInev);
 	++pInevfifo->m_cInev;
 
-	FrInputEvent * pEvent = &pInevfifo->m_aInev[iEvent];
-	Frog_InitInputEvent(pEvent);
-	return pEvent;
+	FrInputEvent * pInev = &pInevfifo->m_aInev[iEvent];
+	Frog_InitInputEvent(pInev);
+	return pInev;
 }
 
 FROG_CALL void PopFront(FrInputEventFifo * pInevfifo)

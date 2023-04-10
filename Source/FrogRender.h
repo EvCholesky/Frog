@@ -125,12 +125,12 @@ typedef struct FrSmp_t // tag = smp
 FROG_CALL f32 Frog_GSmooth(f32 gCurrent, f32 gTarget, const FrSmp * pSmp, f32 dT);
 //f32 GSmoothR(f32 gCurrent, f32 gTarget, f32 rPerSecond, f32 gMinStep, f32 dT);
 
-inline FrVec2		Frog_PosSmooth(FrVec2 gCurrent, FrVec2 gTarget, const FrSmp * pSmp, f32 dT)
+inline FrVec2		Frog_PosSmooth(FrVec2 posCurrent, FrVec2 posTarget, const FrSmp * pSmp, f32 dT)
 						{
 							// BB - should do 2D smooth so it doesn't smooth faster on diagonals
 
-							f32 x = Frog_GSmooth(gCurrent.m_x, gTarget.m_y, pSmp, dT);
-							f32 y = Frog_GSmooth(gCurrent.m_x, gTarget.m_y, pSmp, dT);
+							f32 x = Frog_GSmooth(posCurrent.m_x, posTarget.m_x, pSmp, dT);
+							f32 y = Frog_GSmooth(posCurrent.m_y, posTarget.m_y, pSmp, dT);
 							return Frog_Vec2Create(x,y);
 						}
 
@@ -509,6 +509,20 @@ typedef enum ROOMTK_t // ROOM Transition Kind
 	ROOMTK_Fade,
 } ROOMTK;
 
+typedef struct FrCamera_t // tag = cam
+{
+	FrVec2				m_posRm;			// center of the viewport in room pixel coordinates
+	FrVec2				m_posRmDesired;		// center of the viewport in room pixel coordinates
+} FrCamera;
+
+typedef struct FrViewport_t // tag = viewp
+{
+	FrVec2				m_xyViewportMin;	// Bottom left corner of room in window screen pixels
+	FrVec2				m_dXyView;			// Dimensions of the viewport
+	FrVec2				m_dXyCell;			// size of each full cell in pixels 
+
+} FrViewport;
+
 typedef struct FrRoomTransition_t // tag = roomt
 {
 	FrRoom *			m_pRoomPrev;
@@ -526,6 +540,9 @@ typedef struct FrTileWorld_t	// tag = tworld
 
 	FrRoom				m_aRoom[kCRoomWorldMax];
 	ROOMID				m_aRoomidFree[kCRoomWorldMax];
+
+	FrCamera			m_cam;
+	FrViewport			m_viewp;
 
 	int					m_cEntAllocated;
 	int					m_cRoomAllocated;
@@ -569,11 +586,17 @@ typedef struct FrNoteQueue_t // tag = noteq
 } FrNoteQueue;
 
 FROG_CALL void Frog_InitTileWorld(FrTileWorld * pTworld);
+FROG_CALL void Frog_SetViewport(FrViewport * pViewp, f32 dXViewport, f32 dYViewport, f32 dXCell, f32 dYCell);
+FROG_CALL void Frog_InitCamera(FrCamera * pCam, f32 xFocusRm, f32 yFocusRm);
+FROG_CALL void Frog_CameraLookAt(FrCamera * pCam, f32 xFocusRm, f32 yFocusRm);
+FROG_CALL void Frog_CameraPanToLookAt(FrTileWorld * pTworld, FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm, float dT);
+FROG_CALL void Frog_CameraSetLookAtClamped(FrTileWorld * pTworld, FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm);
 
 FROG_CALL void Frog_InitTransition(FrRoomTransition * pRoomt);
 FROG_CALL void Frog_SetTransition(FrRoomTransition * pRoomt, ROOMTK roomtk, FrRoom * pFroomPrev, FrRoom * pFroomNext);
 FROG_CALL void Frog_UpdateTransition(FrRoomTransition * pRoomt, f32 dT);
 FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt, FrVec2 pos);
+FROG_CALL void Frog_RenderTransitionWithCamera(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt, FrVec2 pos);
 
 FROG_CALL FrRoom * Frog_PRoomAllocate(FrTileWorld * pTworld, int dXCell, int dYCell, int dXCharPixel, int dYCharPixel);
 FROG_CALL FrRoom * Frog_PRoom(FrTileWorld * pTworld, ROOMID roomid);
@@ -601,5 +624,8 @@ FROG_CALL void Frog_InitNoteQueue(FrNoteQueue * pNoteq, int cNoteMax);
 FROG_CALL void Frog_FreeNoteQueue(FrNoteQueue * pNoteq, int cNoteMax);
 FROG_CALL void Frog_RenderNoteQueue(FrDrawContext * pDrac, FrNoteQueue * pNoteq, FrVec2 posTopLeft, float dT);
 FROG_CALL void Frog_PostNote(FrNoteQueue * pNoteq, NOTEK notek, const char * pChzFormat, ...);
+
+FROG_CALL FrVec2 PosRmFromPosScreen(FrRoom * pRoom, FrVec2 * pPosScreenj);
+FROG_CALL FrVec2 PosScreenFromPosRm(FrRoom * pRoom, FrVec2 * pPosRm);
 
 inline bool FIsNull(ENTID entid)				{ return entid == ENTID_Nil; }

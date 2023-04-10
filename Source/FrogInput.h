@@ -10,6 +10,8 @@ typedef enum EVENTK_tag
 {
     EVENTK_Keyboard,
 	EVENTK_Joystick,
+	EVENTK_MousePress,
+	EVENTK_MousePos,
     EVENTK_TextInput,
     EVENTK_Window,
     EVENTK_Quit,
@@ -30,8 +32,6 @@ typedef enum KEYCODE_tag
     KEYCODE_ArrowDown = 4,
     KEYCODE_Shift = 5,
     KEYCODE_Escape = 6,
-    KEYCODE_MouseButtonLeft = 7,
-    KEYCODE_MouseButtonRight = 8,
 
     KEYCODE_Enter = 10,
 
@@ -118,6 +118,18 @@ typedef enum KEYCODE_tag
 	KEYCODE_JoypadButton19 = 98,
 	KEYCODE_JoypadButton20 = 99,
 
+    KEYCODE_MouseButtonLeft = 100,
+    KEYCODE_MouseButtonRight = 101,
+    KEYCODE_MouseButton0 = 100,
+    KEYCODE_MouseButton1 = 101,
+    KEYCODE_MouseButton2 = 102,
+    KEYCODE_MouseButton3 = 103,
+    KEYCODE_MouseButton4 = 104,
+    KEYCODE_MouseButton5 = 105,
+    KEYCODE_MouseButton6 = 106,
+    KEYCODE_MouseButton7 = 107,
+    KEYCODE_MouseButtonLast = KEYCODE_MouseButton7,
+
 	KEYCODE_Max,
 	KEYCODE_Min = 0,
 	KEYCODE_Nil = -1,
@@ -131,6 +143,14 @@ typedef enum FINEV_t
 	FINEV_Alt		= 0x4,	// One or more shift buttons held
 } FINEV;
 
+typedef enum FRDEVICE_t
+{
+	FRDEVICE_Keyboard,
+	FRDEVICE_Mouse,
+	FRDEVICE_Gamepad0,
+
+} FRDEVICE;
+
 
 typedef struct FrInputEvent_t // tag=inev
 {
@@ -140,6 +160,8 @@ typedef struct FrInputEvent_t // tag=inev
     KEYCODE				m_keycode;
 	u8					m_finev;			// input flags
     u32					m_nTextInput;
+	float				m_x;
+	float				m_y;
 } FrInputEvent;
 
 typedef struct FrInputEventFifo_t // tag = inevfifo

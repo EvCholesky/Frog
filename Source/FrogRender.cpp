@@ -1428,9 +1428,38 @@ FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworl
 	Frog_RenderRoom(pDrac, pTworld, pRoomt->m_pRoom, posNew, rRgbNew);
 }
 
-FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoom * pRoom, FrVec2 posUL, float rRGB)
+FROG_CALL void Frog_RenderTransitionWithCamera(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt, FrVec2 posUL)
 {
+/*
+	float rRgbNew = 1.0f;
+	FrVec2 posNew = posUL;
+	if (pRoomt->m_roomtk == ROOMTK_Translate)
+	{
+		f32 rSlide = Frog_GCurveS(pRoomt->m_r);
+		FrVec2 posPrev = Frog_Vec2MulAdd(&posUL, &pRoomt->m_dPos, rSlide);
 
+		rRgbNew = Frog_GMin(pRoomt->m_r * 4.0f, 1.0f);
+		float rRgbPrev = 1.0f - (Frog_GMax(0.0f, pRoomt->m_r - 0.75f) * 4.0f);
+
+		Frog_RenderRoom(pDrac, pTworld, pRoomt->m_pRoomPrev, posPrev, rRgbPrev);
+		posNew = Frog_Vec2Sub(&posPrev, &pRoomt->m_dPos);
+	}
+	*/
+
+	float rRgbNew = 1.0f;
+	FrCamera * pCam = &pTworld->m_cam;
+	FrViewport * pViewp = &pTworld->m_viewp;
+	FrVec2 posViewCenterSc = Frog_Vec2MulAdd(&pViewp->m_xyViewportMin, &pViewp->m_dXyView, 0.5f);
+	FrVec2 posLL = Frog_Vec2Sub(&posViewCenterSc, &pCam->m_posRm); 
+
+	posLL.m_x = (f32)(int)posLL.m_x;
+	posLL.m_y = (f32)(int)posLL.m_y;
+
+	Frog_RenderRoom(pDrac, pTworld, pRoomt->m_pRoom, posLL, rRgbNew);
+}
+
+FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoom * pRoom, FrVec2 posLL, float rRGB)
+{
 	FrRect rect;
 	int dX = pRoom->m_dX;
 	int dY = pRoom->m_dY;
@@ -1452,13 +1481,13 @@ FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrR
 
 		for (int y = 0; y < dY; ++y)
 		{
-			f32 yMax = posUL.m_y + (y * dYCharPixel);
-			rect.m_posMax.m_y = yMax;
-			rect.m_posMin.m_y = yMax - dYCharPixel;
+			f32 yMin = posLL.m_y + (y * dYCharPixel);
+			rect.m_posMin.m_y = yMin;
+			rect.m_posMax.m_y = yMin + dYCharPixel;
 
 			for (int x = 0; x < dX; ++x)
 			{
-				f32 xMin = posUL.m_x + (x * dXCharPixel);
+				f32 xMin = posLL.m_x + (x * dXCharPixel);
 				rect.m_posMin.m_x = xMin;
 				rect.m_posMax.m_x = xMin + dXCharPixel;
 
@@ -1580,13 +1609,13 @@ FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrR
 
 	for (int y = 0; y < pRoom->m_dY; ++y)
 	{
-		f32 yMax = posUL.m_y + (y * dYCharPixel);
-		rect.m_posMax.m_y = yMax;
-		rect.m_posMin.m_y = yMax - dYCharPixel;
+		f32 yMin = posLL.m_y + (y * dYCharPixel);
+		rect.m_posMin.m_y = yMin;
+		rect.m_posMax.m_y = yMin + dYCharPixel;
 
 		for (int x = 0; x < pRoom->m_dX; ++x)
 		{
-			f32 xMin = posUL.m_x + (x * dXCharPixel);
+			f32 xMin = posLL.m_x + (x * dXCharPixel);
 			rect.m_posMin.m_x = xMin;
 			rect.m_posMax.m_x = xMin + dXCharPixel;
 
@@ -1745,6 +1774,85 @@ FROG_CALL void Frog_InitTileWorld(FrTileWorld * pTworld)
 	InitializeFreeRoster(&pTworld->m_cRoomAllocated, (s32*)pTworld->m_aRoomidFree, FR_DIM(pTworld->m_aRoomidFree));
 	pTworld->m_nGenRoom = 1;
 	pTworld->m_pTexSprite = NULL;
+
+	Frog_SetViewport(&pTworld->m_viewp, 1.0f, 1.0f, 32.0f, 32.0f);
+	Frog_InitCamera(&pTworld->m_cam, 0.0f, 0.0f);
+}
+
+FROG_CALL void Frog_SetViewport(FrViewport * pViewp, f32 dXViewport, f32 dYViewport, f32 dXCell, f32 dYCell)
+{
+	pViewp->m_xyViewportMin = Frog_Vec2Create(0.0f, 0.0f);
+	pViewp->m_dXyView = Frog_Vec2Create(dXViewport, dYViewport);
+	pViewp->m_dXyCell = Frog_Vec2Create(dXCell, dYCell);
+}
+
+FROG_CALL void Frog_InitCamera(FrCamera * pCam, f32 xFocusRm, f32 yFocusRm)
+{
+	pCam->m_posRm = Frog_Vec2Create(xFocusRm, yFocusRm);
+	pCam->m_posRmDesired = pCam->m_posRm;
+}
+
+FROG_CALL void Frog_CameraLookAt(FrCamera * pCam, f32 xFocusRm, f32 yFocusRm)
+{
+	pCam->m_posRm = Frog_Vec2Create(xFocusRm, yFocusRm);
+	pCam->m_posRmDesired = pCam->m_posRm;
+}
+
+FROG_CALL void Frog_CameraSetLookAtClamped(FrTileWorld * pTworld, FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm)
+{
+	FrVec2 dXyView = pTworld->m_viewp.m_dXyView;
+	FrVec2 posPrev = pCam->m_posRm;
+	FrVec2 posDesired = Frog_Vec2Create(xFocusRm, yFocusRm);
+	FrVec2 dPos = Frog_Vec2Sub(&posDesired, &posPrev);
+
+	float dXRoom = pRoom->m_dX * pRoom->m_dXCharPixel;
+	float dYRoom = pRoom->m_dY * pRoom->m_dYCharPixel;
+	posDesired.m_x = Frog_GMin(Frog_GMax(posDesired.m_x, dXyView.m_x * 0.5f), dXRoom - (dXyView.m_x * 0.5f));
+	posDesired.m_y = Frog_GMin(Frog_GMax(posDesired.m_y, dXyView.m_y * 0.5f), dYRoom - (dXyView.m_y * 0.5f));
+
+	pCam->m_posRmDesired = posDesired; 
+	pCam->m_posRm = pCam->m_posRmDesired;
+}
+
+FROG_CALL void Frog_CameraPanToLookAt(FrTileWorld * pTworld, FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm, float dT)
+{
+	FrVec2 dXyView = pTworld->m_viewp.m_dXyView;
+	FrVec2 posPrev = pCam->m_posRmDesired;
+	FrVec2 posDesired = Frog_Vec2Create(xFocusRm, yFocusRm);
+	FrVec2 dPos = Frog_Vec2Sub(&posDesired, &posPrev);
+
+	if (dPos.m_x < 0.0f)
+	{
+		// make sure the left side of the screen doesn't pan off the left edge
+
+		posDesired.m_x = Frog_GMin(Frog_GMax(posDesired.m_x, dXyView.m_x * 0.5f), posPrev.m_x);
+	}
+	else if (dPos.m_x > 0.0f)
+	{
+		// make sure the right side of the screen doesn't pan off the right edge
+
+		float dXRoom = pRoom->m_dX * pRoom->m_dXCharPixel;
+		posDesired.m_x = Frog_GMax(Frog_GMin(posDesired.m_x, dXRoom - (dXyView.m_x * 0.5f)), posPrev.m_x);
+	}
+
+	if (dPos.m_y < 0.0f)
+	{
+		// make sure the bottom side of the screen doesn't pan off the bottom edge
+
+		posDesired.m_y = Frog_GMin(Frog_GMax(posDesired.m_y, dXyView.m_y * 0.5f), posPrev.m_y);
+	}
+	else if (dPos.m_y > 0.0f)
+	{
+		// make sure the top side of the screen doesn't pan off the top edge
+
+		float dYRoom = pRoom->m_dY * pRoom->m_dYCharPixel;
+		posDesired.m_y = Frog_GMax(Frog_GMin(posDesired.m_y, dYRoom - (dXyView.m_y * 0.5f)), posPrev.m_y);
+	}
+
+	pCam->m_posRmDesired = posDesired;
+
+	static FrSmp s_smp = { 0.6f, 200.0f, 0.05f };
+	pCam->m_posRm = Frog_PosSmooth(pCam->m_posRm, pCam->m_posRmDesired, &s_smp, dT);
 }
 
 FROG_CALL ENTID Frog_EntidAllocate(FrTileWorld * pTworld)

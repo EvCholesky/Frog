@@ -21,25 +21,38 @@ FROG_CALL void UpdateInputEditor(World * pWorld, FrInput * pInput)
 	FrInputEvent * pInev;
 	while (pInev = Frog_PInevNext(&inevit))
 	{
-		if (pInev->m_keycode == KEYCODE_Space)
+		switch(pInev->m_eventk)	
 		{
-			pEditor->m_edgesSpace = pInev->m_edges;
-		}
-
-		if (pInev->m_edges != EDGES_Press)
-			continue;
-
-		switch (pInev->m_keycode)
-		{
-		case KEYCODE_S:
-			if (pInev->m_finev & FINEV_Ctrl)
+		case EVENTK_MousePos:
 			{
-				SaveWorldInline(pWorld);
+				
 			}
 			break;
 
-		case KEYCODE_F1:
-			SetGameMode(pWorld, GAMEMODE_Play);
+		case EVENTK_Keyboard:
+			{
+				if (pInev->m_keycode == KEYCODE_Space)
+				{
+					pEditor->m_edgesSpace = pInev->m_edges;
+				}
+
+				if (pInev->m_edges != EDGES_Press)
+					continue;
+
+				switch (pInev->m_keycode)
+				{
+				case KEYCODE_S:
+					if (pInev->m_finev & FINEV_Ctrl)
+					{
+						SaveWorldInline(pWorld);
+					}
+					break;
+
+				case KEYCODE_F1:
+					SetGameMode(pWorld, GAMEMODE_Play);
+					break;
+				}
+			}
 			break;
 		}
 	}
