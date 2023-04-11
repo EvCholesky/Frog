@@ -85,6 +85,17 @@ inline FrVec3 Frog_Vec3MulAdd(FrVec3 * pVecA, FrVec3 * pVecB, f32 r)
 	return vec3; 
 }
 
+inline FrVec2 Frog_Vec2Mul(FrVec2 * pVecA, f32 r)	
+{
+	FrVec2 vec2 = {pVecA->m_x*r, pVecA->m_y*r}; 
+	return vec2; 
+}
+inline FrVec3 Frog_Vec3Mul(FrVec3 * pVecA, f32 r)
+{
+	FrVec3 vec3 = {pVecA->m_x*r, pVecA->m_y*r, pVecA->m_z*r}; 
+	return vec3; 
+}
+
 inline FrRect Frog_RectCreate(f32 xMin, f32 yMin, f32 xMax, f32 yMax)	
 	{ 
 		FrRect rect = {{xMin, yMin}, {xMax, yMax}};  
@@ -509,26 +520,35 @@ typedef enum ROOMTK_t // ROOM Transition Kind
 	ROOMTK_Fade,
 } ROOMTK;
 
+// Coordinate spaces
+// Cell->Room->Camera->Scissor->Window
+
+// (Cl) Cell : integer xy cell coordinates
+// (Rm) Room : pixel room coordinates
+// (Cam) Camera : origin is centered on the focus room object 
+// (Sc) Scissor : centered on lower left of scissor region 
+// (Win) Window : origin in lower of window
+
 typedef struct FrCamera_t // tag = cam
 {
 	FrVec2				m_posRm;			// center of the viewport in room pixel coordinates
 	FrVec2				m_posRmDesired;		// center of the viewport in room pixel coordinates
+
+	FrVec2				m_posScissor;		// Bottom-Left corner of the scissor region in window pixels
+	FrVec2				m_dPosScToCam;		// Offset to the origin of camera space in the scissor region 
+	FrVec2				m_dXyScissor;		// Scissor dimensions
+
+	FrVec2				m_dXyCell;			// Size of each full cell in pixels 
+
 } FrCamera;
-
-typedef struct FrViewport_t // tag = viewp
-{
-	FrVec2				m_xyViewportMin;	// Bottom left corner of room in window screen pixels
-	FrVec2				m_dXyView;			// Dimensions of the viewport
-	FrVec2				m_dXyCell;			// size of each full cell in pixels 
-
-} FrViewport;
 
 typedef struct FrRoomTransition_t // tag = roomt
 {
 	FrRoom *			m_pRoomPrev;
 	FrRoom *			m_pRoom;
-	float				m_r;			// percent complete
-	FrVec2				m_dPos;			// ending offset for previous screen
+	float				m_r;				// percent complete
+	FrVec2				m_dPos;				// ending offset for previous screen
+	FrVec2				m_dPosPrevRoom;		// static offset from room to prevRoom 
 	ROOMTK				m_roomtk;
 } FrRoomTransition;
 
@@ -542,7 +562,6 @@ typedef struct FrTileWorld_t	// tag = tworld
 	ROOMID				m_aRoomidFree[kCRoomWorldMax];
 
 	FrCamera			m_cam;
-	FrViewport			m_viewp;
 
 	int					m_cEntAllocated;
 	int					m_cRoomAllocated;
@@ -586,11 +605,10 @@ typedef struct FrNoteQueue_t // tag = noteq
 } FrNoteQueue;
 
 FROG_CALL void Frog_InitTileWorld(FrTileWorld * pTworld);
-FROG_CALL void Frog_SetViewport(FrViewport * pViewp, f32 dXViewport, f32 dYViewport, f32 dXCell, f32 dYCell);
-FROG_CALL void Frog_InitCamera(FrCamera * pCam, f32 xFocusRm, f32 yFocusRm);
+FROG_CALL void Frog_SetViewParams(FrCamera * pCam, FrVec2 * pPosScissor, FrVec2 * pDXyScissor,  FrVec2 * pDXyCell);
 FROG_CALL void Frog_CameraLookAt(FrCamera * pCam, f32 xFocusRm, f32 yFocusRm);
-FROG_CALL void Frog_CameraPanToLookAt(FrTileWorld * pTworld, FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm, float dT);
-FROG_CALL void Frog_CameraSetLookAtClamped(FrTileWorld * pTworld, FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm);
+FROG_CALL void Frog_CameraPanToLookAt(FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm, float dT);
+FROG_CALL void Frog_CameraSetLookAtClamped(FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm);
 
 FROG_CALL void Frog_InitTransition(FrRoomTransition * pRoomt);
 FROG_CALL void Frog_SetTransition(FrRoomTransition * pRoomt, ROOMTK roomtk, FrRoom * pFroomPrev, FrRoom * pFroomNext);

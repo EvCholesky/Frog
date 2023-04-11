@@ -380,7 +380,7 @@ const RoomTransition * PRmtransLookup(RoomDefinition * pRmdef, TRANSK transk)
 	return NULL;
 }
 
-static void TranslateCurScreen(World * pWorld, GameRoom * pGroomNew, FrVec2 dPosTransit)
+static void TranslateCurScreen(World * pWorld, GameRoom * pGroomNew, FrVec2 dPosTransit, FrVec2 dPosPrevRoomOffset)
 {
 	GameRoom * pGroomPrev = pWorld->m_pGroomCur;
 
@@ -395,6 +395,7 @@ static void TranslateCurScreen(World * pWorld, GameRoom * pGroomNew, FrVec2 dPos
 	{
 		Frog_SetTransition(&pWorld->m_roomt, ROOMTK_Translate, pGroomPrev->m_pRoomFrog, pGroomNew->m_pRoomFrog);
 		pWorld->m_roomt.m_dPos = dPosTransit;
+		pWorld->m_roomt.m_dPosPrevRoom = dPosPrevRoomOffset;
 	}
 }
 
@@ -525,8 +526,8 @@ static void MoveAvatar(World * pWorld, GameEntity * pGent, int dX, int dY)
 
 	int xNew = pGent->m_x + dX;
 	int yNew = pGent->m_y + dY;
-	int dXScreen = 0;
-	int dYScreen = 0;
+	float dXScreen = 0;
+	float dYScreen = 0;
 
 	int xTrans = pGent->m_x + dX;
 	int yTrans = pGent->m_y + dY;
@@ -601,20 +602,20 @@ static void MoveAvatar(World * pWorld, GameEntity * pGent, int dX, int dY)
 			switch (transk)
 			{
 			case TRANSK_DirL:
-				dXScreen = -1;
+				dXScreen = -pGroomNext->m_pRoomFrog->m_dX * pRoom->m_dXCharPixel;
 				dYScreen = 0;
 				break;
 			case TRANSK_DirR:
-				dXScreen = 1;
+				dXScreen = pGroom->m_pRoomFrog->m_dX * pRoom->m_dXCharPixel;
 				dYScreen = 0;
 				break;
 			case TRANSK_DirD:
 				dXScreen = 0;
-				dYScreen = 1;
+				dYScreen = pGroomNext->m_pRoomFrog->m_dY * pRoom->m_dYCharPixel;
 				break;
 			case TRANSK_DirU:
 				dXScreen = 0;
-				dYScreen = -1;
+				dYScreen = -pGroom->m_pRoomFrog->m_dY * pRoom->m_dYCharPixel;
 				break;
 			}
 			xNew = xTrans;
@@ -623,80 +624,6 @@ static void MoveAvatar(World * pWorld, GameEntity * pGent, int dX, int dY)
 			dYPixelTrans = pRmtrans->m_dY * pRoom->m_dYCharPixel;
 		}
 	}
-
-#if 0
-	if (xNew < 0)
-	{
-		xNew = pGent->m_x;
-		const RoomTransition * pRmtrans = PRmtransLookup(pGroom->m_pRmdef, TRANSK_DirL);
-		if (pRmtrans)
-		{
-			pGroomNext = PGroomLookup(pWorld, pRmtrans->m_pChzDest);
-		}
-
-		if (pGroomNext != pGroom)
-		{
-			dXScreen = -1;
-			xNew = pGroomNext->m_pRoomFrog->m_dX - 1;
-			yNew = pGent->m_y + pRmtrans->m_dY;
-			dYPixelTrans = pRmtrans->m_dX * pRoom->m_dXCharPixel;
-			dYPixelTrans = pRmtrans->m_dY * pRoom->m_dYCharPixel;
-		}
-	}
-	else if (xNew >= pRoom->m_dX)
-	{
-		xNew = pGent->m_x;
-		const RoomTransition * pRmtrans = PRmtransLookup(pGroom->m_pRmdef, TRANSK_DirR);
-		if (pRmtrans)
-		{
-			pGroomNext = PGroomLookup(pWorld, pRmtrans->m_pChzDest);
-		}
-
-		if (pGroomNext != pGroom)
-		{
-			dXScreen = 1;
-			xNew = 0;
-			yNew = pGent->m_y + pRmtrans->m_dY;
-			dYPixelTrans = pRmtrans->m_dX * pRoom->m_dXCharPixel;
-			dYPixelTrans = pRmtrans->m_dY * pRoom->m_dYCharPixel;
-		}
-	}
-
-	if (yNew < 0)
-	{
-		yNew = pGent->m_y;
-		const RoomTransition * pRmtrans = PRmtransLookup(pGroom->m_pRmdef, TRANSK_DirD);
-		if (pRmtrans)
-		{
-			pGroomNext = PGroomLookup(pWorld, pRmtrans->m_pChzDest);
-		}
-
-		if (pGroomNext != pGroom)
-		{
-			dYScreen = 1;
-			yNew = pGroomNext->m_pRoomFrog->m_dY - 1;
-			dYPixelTrans = pRmtrans->m_dX * pRoom->m_dXCharPixel;
-			dYPixelTrans = pRmtrans->m_dY * pRoom->m_dYCharPixel;
-		}
-	}
-	else if (yNew >= pRoom->m_dY)
-	{
-		yNew = pGent->m_y;
-		const RoomTransition * pRmtrans = PRmtransLookup(pGroom->m_pRmdef, TRANSK_DirU);
-		if (pRmtrans)
-		{
-			pGroomNext = PGroomLookup(pWorld, pRmtrans->m_pChzDest);
-		}
-
-		if (pGroomNext != pGroom)
-		{
-			dYScreen = -1;
-			yNew = 0;
-			dYPixelTrans = pRmtrans->m_dX * pRoom->m_dXCharPixel;
-			dYPixelTrans = pRmtrans->m_dY * pRoom->m_dYCharPixel;
-		}
-	}
-#endif
 
 	if (FTryMoveEntity(pWorld, pGent, xNew, yNew, pGroom, pGroomNext))
 	{
@@ -714,13 +641,19 @@ static void MoveAvatar(World * pWorld, GameEntity * pGent, int dX, int dY)
 			FrRoom * pRoomNextFrog = pGroomNext->m_pRoomFrog;
 			float xNewPx = xNew * pRoomNextFrog->m_dXCharPixel;
 			float yNewPx = yNew * pRoomNextFrog->m_dYCharPixel;
-			Frog_CameraSetLookAtClamped(&pWorld->m_tworld, pRoomNextFrog, &pWorld->m_tworld.m_cam, xNewPx, yNewPx);
+			Frog_CameraSetLookAtClamped(pRoomNextFrog, &pWorld->m_tworld.m_cam, xNewPx, yNewPx);
 
 			Frog_PostNote(&pWorld->m_noteq, NOTEK_LowPriority, "Entered room %s", pGroomNext->m_pRmdef->m_pChzName);	
+
+			FrVec2 dPosTransit = Frog_Vec2Create(-dXScreen, dYScreen);
+			FrVec2 dXyCell = pWorld->m_tworld.m_cam.m_dXyCell;
+			FrVec2 dPosOffset = Frog_Vec2Create(pRmtrans->m_dX * dXyCell.m_x, pRmtrans->m_dY * dXyCell.m_y);
+			
 			TranslateCurScreen(
 				pWorld, 
 				pGroomNext,
-				Frog_Vec2Create(-dXScreen * dYPixelScr + dXPixelTrans, dYScreen * dYPixelScr + dYPixelTrans));
+				dPosTransit,
+				dPosOffset);
 		}
 	}
 }
@@ -738,7 +671,6 @@ FROG_CALL void CutToRoom(World * pWorld, GameRoom * pGroom)
 	pWorld->m_roomt.m_roomtk = ROOMTK_None;
 
 	pWorld->m_pGroomCur = pGroom;
-
 }
 
 static GameEntity * PGentAllocate(World * pWorld, ENTK entk, int x, int y, char iTile)
@@ -852,8 +784,15 @@ void InitWorldMaze(World * pWorld)
 	static float s_dXViewport = 800;
 	static float s_dYViewport = 600;
 	FrTileWorld * pTworld = &pWorld->m_tworld;
-	Frog_SetViewport(&pTworld->m_viewp, s_dXViewport, s_dYViewport, (float)s_dXyCharPixel, (float)s_dXyCharPixel);
-	pTworld->m_viewp.m_xyViewportMin = Frog_Vec2Create(10, 190);
+
+	FrVec2 posScissor = Frog_Vec2Create(10, 190);
+	FrVec2 dXyScissor = Frog_Vec2Create(s_dXViewport, s_dYViewport);
+	FrVec2 dXyCell = Frog_Vec2Create((float)s_dXyCharPixel, (float)s_dXyCharPixel);
+	Frog_SetViewParams(
+				&pTworld->m_cam, 
+				&posScissor,
+				&dXyScissor, 
+				&dXyCell);
 
 	pTexSprite = Frog_PTexLoad("Assets/sprites.png", true);
 	Frog_SetTextureFilteringNearest(pTexSprite);
@@ -912,7 +851,7 @@ void InitWorldMaze(World * pWorld)
 	FrRoom * pRoomNextFrog = pGroomStarting->m_pRoomFrog;
 	float xNewPx = pGentAvatar->m_x * pRoomNextFrog->m_dXCharPixel;
 	float yNewPx = pGentAvatar->m_y * pRoomNextFrog->m_dYCharPixel;
-	Frog_CameraSetLookAtClamped(&pWorld->m_tworld, pRoomNextFrog, &pWorld->m_tworld.m_cam, xNewPx, yNewPx);
+	Frog_CameraSetLookAtClamped(pRoomNextFrog, &pWorld->m_tworld.m_cam, xNewPx, yNewPx);
 }
 FROG_CALL void SaveWorldInline(World * pWorld)
 {
@@ -974,10 +913,10 @@ void UpdatePlayMode(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32
 	}
 
 	//Frog_SetScissor(pDrac, 20, 136, 850, 650);
-	FrViewport * pViewp = &pWorld->m_tworld.m_viewp;
-	float xScissorMin = pViewp->m_xyViewportMin.m_x;
-	float yScissorMin = pViewp->m_xyViewportMin.m_y;
-	Frog_SetScissor(pDrac, (s16)xScissorMin, (s16)yScissorMin, (s16)pViewp->m_dXyView.m_x, (s16)pViewp->m_dXyView.m_y);
+	FrCamera * pCam = &pWorld->m_tworld.m_cam;
+	float xScissorMin = pCam->m_posScissor.m_x;
+	float yScissorMin = pCam->m_posScissor.m_y;
+	Frog_SetScissor(pDrac, (s16)xScissorMin, (s16)yScissorMin, (s16)pCam->m_dXyScissor.m_x, (s16)pCam->m_dXyScissor.m_y);
 	Frog_RenderTransitionWithCamera(pDrac, &pWorld->m_tworld, pRoomt, s_posScreen);
 	Frog_DisableScissor(pDrac);
 
@@ -992,10 +931,9 @@ void UpdatePlayMode(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32
 	}
 
 	Frog_CameraPanToLookAt(
-						&pWorld->m_tworld, 
 						pWorld->m_pGroomCur->m_pRoomFrog, 
 						&pWorld->m_tworld.m_cam, 
-						pWorld->m_pGentAvatar->m_x * pViewp->m_dXyCell.m_x,  pWorld->m_pGentAvatar->m_y * pViewp->m_dXyCell.m_y, 
+						pWorld->m_pGentAvatar->m_x * pCam->m_dXyCell.m_x,  pWorld->m_pGentAvatar->m_y * pCam->m_dXyCell.m_y, 
 						dT);
 
 	GameRoom * pGroomCur = pWorld->m_pGroomCur;

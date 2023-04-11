@@ -1428,34 +1428,38 @@ FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworl
 	Frog_RenderRoom(pDrac, pTworld, pRoomt->m_pRoom, posNew, rRgbNew);
 }
 
+FROG_CALL FrVec2 PosScFromPosRm(FrCamera * pCam, FrVec2 * pPosRm)
+{
+	FrVec2 posWorld = Frog_Vec2Sub(pPosRm, &pCam->m_posRm); 
+	FrVec2 posViewCenterSc = Frog_Vec2Add(&pCam->m_posScissor, &pCam->m_dXyScissor);
+	return Frog_Vec2Add(&posWorld, &posViewCenterSc);
+}
+
 FROG_CALL void Frog_RenderTransitionWithCamera(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt, FrVec2 posUL)
 {
-/*
+	FrCamera * pCam = &pTworld->m_cam;
+	FrVec2 dPosWinToCam = Frog_Vec2Add(&pCam->m_posScissor, &pCam->m_dPosScToCam);
+	FrVec2 dPosWinToRoom = Frog_Vec2Sub(&dPosWinToCam, &pCam->m_posRm); 
+
+	dPosWinToRoom.m_x = roundf(dPosWinToRoom.m_x);
+	dPosWinToRoom.m_y = roundf(dPosWinToRoom.m_y);
+
 	float rRgbNew = 1.0f;
 	FrVec2 posNew = posUL;
 	if (pRoomt->m_roomtk == ROOMTK_Translate)
 	{
 		f32 rSlide = Frog_GCurveS(pRoomt->m_r);
-		FrVec2 posPrev = Frog_Vec2MulAdd(&posUL, &pRoomt->m_dPos, rSlide);
+		FrVec2 posPrev = Frog_Vec2MulAdd(&dPosWinToRoom, &pRoomt->m_dPos, rSlide);
 
 		rRgbNew = Frog_GMin(pRoomt->m_r * 4.0f, 1.0f);
 		float rRgbPrev = 1.0f - (Frog_GMax(0.0f, pRoomt->m_r - 0.75f) * 4.0f);
 
-		Frog_RenderRoom(pDrac, pTworld, pRoomt->m_pRoomPrev, posPrev, rRgbPrev);
-		posNew = Frog_Vec2Sub(&posPrev, &pRoomt->m_dPos);
+		FrVec2 posPrevWithOffset = Frog_Vec2Add(&posPrev, &pRoomt->m_dPosPrevRoom);
+		Frog_RenderRoom(pDrac, pTworld, pRoomt->m_pRoomPrev, posPrevWithOffset, rRgbPrev);
+		dPosWinToRoom = Frog_Vec2Sub(&posPrev, &pRoomt->m_dPos);
 	}
-	*/
 
-	float rRgbNew = 1.0f;
-	FrCamera * pCam = &pTworld->m_cam;
-	FrViewport * pViewp = &pTworld->m_viewp;
-	FrVec2 posViewCenterSc = Frog_Vec2MulAdd(&pViewp->m_xyViewportMin, &pViewp->m_dXyView, 0.5f);
-	FrVec2 posLL = Frog_Vec2Sub(&posViewCenterSc, &pCam->m_posRm); 
-
-	posLL.m_x = (f32)(int)posLL.m_x;
-	posLL.m_y = (f32)(int)posLL.m_y;
-
-	Frog_RenderRoom(pDrac, pTworld, pRoomt->m_pRoom, posLL, rRgbNew);
+	Frog_RenderRoom(pDrac, pTworld, pRoomt->m_pRoom, dPosWinToRoom, rRgbNew);
 }
 
 FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoom * pRoom, FrVec2 posLL, float rRGB)
@@ -1775,21 +1779,23 @@ FROG_CALL void Frog_InitTileWorld(FrTileWorld * pTworld)
 	pTworld->m_nGenRoom = 1;
 	pTworld->m_pTexSprite = NULL;
 
-	Frog_SetViewport(&pTworld->m_viewp, 1.0f, 1.0f, 32.0f, 32.0f);
-	Frog_InitCamera(&pTworld->m_cam, 0.0f, 0.0f);
+	FrVec2 pPosScissor = Frog_Vec2Create(1.0f, 1.0f);
+	FrVec2 dXyScissor = Frog_Vec2Create(1.0f, 1.0f);
+	FrVec2 dXyCell = Frog_Vec2Create(32.0f, 32.0f);
+	Frog_SetViewParams(&pTworld->m_cam, &pPosScissor, &dXyScissor, &dXyCell);
 }
 
-FROG_CALL void Frog_SetViewport(FrViewport * pViewp, f32 dXViewport, f32 dYViewport, f32 dXCell, f32 dYCell)
+FROG_CALL void Frog_SetViewParams(FrCamera * pCam, FrVec2 * pPosScissor, FrVec2 * pDXyScissor,  FrVec2 * pDXyCell)
 {
-	pViewp->m_xyViewportMin = Frog_Vec2Create(0.0f, 0.0f);
-	pViewp->m_dXyView = Frog_Vec2Create(dXViewport, dYViewport);
-	pViewp->m_dXyCell = Frog_Vec2Create(dXCell, dYCell);
-}
-
-FROG_CALL void Frog_InitCamera(FrCamera * pCam, f32 xFocusRm, f32 yFocusRm)
-{
-	pCam->m_posRm = Frog_Vec2Create(xFocusRm, yFocusRm);
+	pCam->m_posRm = Frog_Vec2Create(0.0f, 0.0f);
 	pCam->m_posRmDesired = pCam->m_posRm;
+
+	pCam->m_posScissor = *pPosScissor;
+
+	pCam->m_dXyScissor = *pDXyScissor; 
+	pCam->m_dPosScToCam = Frog_Vec2Mul(pDXyScissor, 0.5f);
+
+	pCam->m_dXyCell = *pDXyCell;
 }
 
 FROG_CALL void Frog_CameraLookAt(FrCamera * pCam, f32 xFocusRm, f32 yFocusRm)
@@ -1798,25 +1804,25 @@ FROG_CALL void Frog_CameraLookAt(FrCamera * pCam, f32 xFocusRm, f32 yFocusRm)
 	pCam->m_posRmDesired = pCam->m_posRm;
 }
 
-FROG_CALL void Frog_CameraSetLookAtClamped(FrTileWorld * pTworld, FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm)
+FROG_CALL void Frog_CameraSetLookAtClamped(FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm)
 {
-	FrVec2 dXyView = pTworld->m_viewp.m_dXyView;
+	FrVec2 dXyScissor = pCam->m_dXyScissor;
 	FrVec2 posPrev = pCam->m_posRm;
 	FrVec2 posDesired = Frog_Vec2Create(xFocusRm, yFocusRm);
 	FrVec2 dPos = Frog_Vec2Sub(&posDesired, &posPrev);
 
 	float dXRoom = pRoom->m_dX * pRoom->m_dXCharPixel;
 	float dYRoom = pRoom->m_dY * pRoom->m_dYCharPixel;
-	posDesired.m_x = Frog_GMin(Frog_GMax(posDesired.m_x, dXyView.m_x * 0.5f), dXRoom - (dXyView.m_x * 0.5f));
-	posDesired.m_y = Frog_GMin(Frog_GMax(posDesired.m_y, dXyView.m_y * 0.5f), dYRoom - (dXyView.m_y * 0.5f));
+	posDesired.m_x = Frog_GMin(Frog_GMax(posDesired.m_x, dXyScissor.m_x * 0.5f), dXRoom - (dXyScissor.m_x * 0.5f));
+	posDesired.m_y = Frog_GMin(Frog_GMax(posDesired.m_y, dXyScissor.m_y * 0.5f), dYRoom - (dXyScissor.m_y * 0.5f));
 
 	pCam->m_posRmDesired = posDesired; 
 	pCam->m_posRm = pCam->m_posRmDesired;
 }
 
-FROG_CALL void Frog_CameraPanToLookAt(FrTileWorld * pTworld, FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm, float dT)
+FROG_CALL void Frog_CameraPanToLookAt(FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm, float dT)
 {
-	FrVec2 dXyView = pTworld->m_viewp.m_dXyView;
+	FrVec2 dXyView = pCam->m_dXyScissor;
 	FrVec2 posPrev = pCam->m_posRmDesired;
 	FrVec2 posDesired = Frog_Vec2Create(xFocusRm, yFocusRm);
 	FrVec2 dPos = Frog_Vec2Sub(&posDesired, &posPrev);
