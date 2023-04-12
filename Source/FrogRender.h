@@ -531,8 +531,8 @@ typedef enum ROOMTK_t // ROOM Transition Kind
 
 typedef struct FrCamera_t // tag = cam
 {
-	FrVec2				m_posRm;			// center of the viewport in room pixel coordinates
-	FrVec2				m_posRmDesired;		// center of the viewport in room pixel coordinates
+	FrVec2				m_posRm;			// focus position in room pixel coordinates
+	FrVec2				m_posRmDesired;		// focus position room pixel coordinates
 
 	FrVec2				m_posScissor;		// Bottom-Left corner of the scissor region in window pixels
 	FrVec2				m_dPosScToCam;		// Offset to the origin of camera space in the scissor region 
@@ -610,17 +610,21 @@ FROG_CALL void Frog_CameraLookAt(FrCamera * pCam, f32 xFocusRm, f32 yFocusRm);
 FROG_CALL void Frog_CameraPanToLookAt(FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm, float dT);
 FROG_CALL void Frog_CameraSetLookAtClamped(FrRoom * pRoom, FrCamera * pCam, f32 xFocusRm, f32 yFocusRm);
 
+FROG_CALL FrVec2 PosWinToRm(FrCamera * pCam);
+FROG_CALL void Frog_FindCellFromPosSc(FrCamera * pCam, FrRoom * pRoom, FrVec2 * pPosSc, int * pXCell, int * pYCell);
+
 FROG_CALL void Frog_InitTransition(FrRoomTransition * pRoomt);
 FROG_CALL void Frog_SetTransition(FrRoomTransition * pRoomt, ROOMTK roomtk, FrRoom * pFroomPrev, FrRoom * pFroomNext);
 FROG_CALL void Frog_UpdateTransition(FrRoomTransition * pRoomt, f32 dT);
 FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt, FrVec2 pos);
-FROG_CALL void Frog_RenderTransitionWithCamera(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt, FrVec2 pos);
+FROG_CALL void Frog_RenderTransitionWithCamera(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt);
 
 FROG_CALL FrRoom * Frog_PRoomAllocate(FrTileWorld * pTworld, int dXCell, int dYCell, int dXCharPixel, int dYCharPixel);
 FROG_CALL FrRoom * Frog_PRoom(FrTileWorld * pTworld, ROOMID roomid);
 FROG_CALL void Frog_FreeRoom(FrTileWorld * pTworld, FrRoom * pRoom);
 FROG_CALL void Frog_RenderRoom(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoom * pFroom, FrVec2 posUL, float rRGB);
 FROG_CALL void Frog_SetRoomTiles(FrRoom * pFroom, FrTileMap * pTmap, const char * pCozScreen);
+FROG_CALL void Frog_SetRoomTile(FrRoom * pRoom, FrTileMap * pTmap, int xTile, int yTile, int ch);
 FROG_CALL void Frog_SortEntityUpdateList(FrRoom * pRoom);
 
 FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char iTile, u32 wchOut, FrColor colFg,  FrColor colBg, s16 iSptile, u8 ftile);

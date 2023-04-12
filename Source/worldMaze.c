@@ -754,7 +754,7 @@ void UpdateRoomEntities(World * pWorld, FrRoom * pRoom, float dT)
 
 FROG_CALL void SetGameMode(World * pWorld, GAMEMODE gamemode)
 {
-	if (pWorld->m_gamemode = gamemode)
+	if (pWorld->m_gamemode == gamemode)
 		return;
 
 	// leaving state
@@ -763,7 +763,10 @@ FROG_CALL void SetGameMode(World * pWorld, GAMEMODE gamemode)
 
 	switch (gamemode)
 	{
-	
+	case GAMEMODE_Editor:	
+		{
+		}
+		break;
 	}
 }
 
@@ -773,7 +776,7 @@ void InitWorldMaze(World * pWorld)
 	pWorld->m_xScr = 0;
 	pWorld->m_yScr = 0;
 	pWorld->m_gamemode = GAMEMODE_Play;
-	pWorld->m_pEditor = PEditorStaticInit();
+	pWorld->m_pEdit = PEditStaticInit();
 
 	RoomLibrary * pRmlib = &s_rmlib;
 
@@ -888,7 +891,6 @@ static void UpdateInputPlay(World * pWorld, FrInput * pInput)
 
 void UpdatePlayMode(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32 dT)
 {
-	FrVec2 s_posScreen = Frog_Vec2Create(10, 200);
 	FrVec2 s_posText = Frog_Vec2Create(10.0f, 80.0f);
 
 	//char aCh[32];
@@ -917,7 +919,7 @@ void UpdatePlayMode(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32
 	float xScissorMin = pCam->m_posScissor.m_x;
 	float yScissorMin = pCam->m_posScissor.m_y;
 	Frog_SetScissor(pDrac, (s16)xScissorMin, (s16)yScissorMin, (s16)pCam->m_dXyScissor.m_x, (s16)pCam->m_dXyScissor.m_y);
-	Frog_RenderTransitionWithCamera(pDrac, &pWorld->m_tworld, pRoomt, s_posScreen);
+	Frog_RenderTransitionWithCamera(pDrac, &pWorld->m_tworld, pRoomt);
 	Frog_DisableScissor(pDrac);
 
 	UpdateInputPlay(pWorld, pInput);
@@ -944,12 +946,40 @@ void UpdatePlayMode(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32
 
 void UpdateEditorMode(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32 dT) 
 {
-	FrVec2 s_posScreen = Frog_Vec2Create(10, 200);
-	Frog_RenderRoom(pDrac, &pWorld->m_tworld, pWorld->m_pGroomCur->m_pRoomFrog, s_posScreen, 1.0f);
+	Editor * pEdit = pWorld->m_pEdit;
+	//FrVec2 posRoom = pEdit->m_posRoom;
+
+	FrCamera * pCam = &pWorld->m_tworld.m_cam;
+	FrVec2 dPosWinToRoom = PosWinToRm(pCam);
+
+	dPosWinToRoom.m_x = roundf(dPosWinToRoom.m_x);
+	dPosWinToRoom.m_y = roundf(dPosWinToRoom.m_y);
+
+	if (pEdit->m_edgesSpace >= EDGES_Press)
+	{
+		FrVec2 dPos = Frog_Vec2Sub(&pEdit->m_posCursor, &pEdit->m_posCursorGrab);
+		dPosWinToRoom = Frog_Vec2Add(&dPosWinToRoom, &dPos); 
+	}
+
+	Frog_RenderRoom(pDrac, &pWorld->m_tworld, pWorld->m_pGroomCur->m_pRoomFrog, dPosWinToRoom, 1.0f);
 
 	UpdateInputEditor(pWorld, pInput);
 
 	UpdateEditorWindow(pWorld);
+
+	int xCell, yCell;
+	FrRoom * pRoomFrog = pWorld->m_pGroomCur->m_pRoomFrog;
+	Frog_FindCellFromPosSc(pCam, pRoomFrog, &pEdit->m_posCursor, &xCell, &yCell);
+	FrVec2 dXyCell = pCam->m_dXyCell;
+	FrVec2 posCell = Frog_Vec2Create(xCell * dXyCell.m_x, yCell * dXyCell.m_y);
+
+	posCell = Frog_Vec2Add(&posCell, &dPosWinToRoom);
+
+	FrColorVec colvecCursor = Frog_ColvecCreate(Frog_ColCreate(0x40FF80FF));
+
+	FrRect rectPosCursor = Frog_RectCreate(posCell.m_x, posCell.m_y, posCell.m_x + dXyCell.m_x, posCell.m_y + dXyCell.m_y);
+	FrRect rectUv = Frog_RectCreate(1.0f, 1.0f, 1.0f, 1.0f);
+	Frog_DrawSprite(pDrac, pWorld->m_tworld.m_pTexSprite, &rectPosCursor, &rectUv, &colvecCursor);
 }
 
 void UpdateWorldMaze(World * pWorld, FrDrawContext * pDrac, FrInput * pInput, f32 dT)

@@ -127,8 +127,15 @@ static void GlfwMousePosCallback(GLFWwindow* pWindow, double xPos, double yPos)
 	pInev->m_nDeviceId = FRDEVICE_Mouse;
 	pInev->m_finev = FINEV_None;
 	pInev->m_keycode = KEYCODE_Nil;
+
+	// We're expecting coordinates relative to the lower left corner, 
+	//  but glfw reports them relative to the upper left 
+	
+	int dX, dY;
+	glfwGetFramebufferSize(pWindow, &dX, &dY);
+
 	pInev->m_x = (float)xPos;
-	pInev->m_y = (float)yPos;
+	pInev->m_y = (float)(dY - yPos);
 }
 
 static void GlfwMouseButtonCallback(GLFWwindow * pWindow, int nButton, int nAction, int nMods)

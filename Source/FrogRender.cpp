@@ -1428,24 +1428,30 @@ FROG_CALL void Frog_RenderTransition(FrDrawContext * pDrac, FrTileWorld * pTworl
 	Frog_RenderRoom(pDrac, pTworld, pRoomt->m_pRoom, posNew, rRgbNew);
 }
 
-FROG_CALL FrVec2 PosScFromPosRm(FrCamera * pCam, FrVec2 * pPosRm)
+FROG_CALL FrVec2 PosWinToRm(FrCamera * pCam)
 {
-	FrVec2 posWorld = Frog_Vec2Sub(pPosRm, &pCam->m_posRm); 
-	FrVec2 posViewCenterSc = Frog_Vec2Add(&pCam->m_posScissor, &pCam->m_dXyScissor);
-	return Frog_Vec2Add(&posWorld, &posViewCenterSc);
+	FrVec2 dPosWinToCam = Frog_Vec2Add(&pCam->m_posScissor, &pCam->m_dPosScToCam);
+	return Frog_Vec2Sub(&dPosWinToCam, &pCam->m_posRm);
 }
 
-FROG_CALL void Frog_RenderTransitionWithCamera(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt, FrVec2 posUL)
+FROG_CALL void Frog_FindCellFromPosSc(FrCamera * pCam, FrRoom * pRoom, FrVec2 * pPosSc, int * pXCell, int * pYCell)
+{
+	FrVec2 dPosWinToRoom = PosWinToRm(pCam);
+
+	FrVec2 posRoom = Frog_Vec2MulAdd(pPosSc, &dPosWinToRoom, -1.0f);
+	*pXCell = (int)(posRoom.m_x / pCam->m_dXyCell.m_x);
+	*pYCell = (int)(posRoom.m_y / pCam->m_dXyCell.m_y);
+}
+
+FROG_CALL void Frog_RenderTransitionWithCamera(FrDrawContext * pDrac, FrTileWorld * pTworld, FrRoomTransition * pRoomt)
 {
 	FrCamera * pCam = &pTworld->m_cam;
-	FrVec2 dPosWinToCam = Frog_Vec2Add(&pCam->m_posScissor, &pCam->m_dPosScToCam);
-	FrVec2 dPosWinToRoom = Frog_Vec2Sub(&dPosWinToCam, &pCam->m_posRm); 
+	FrVec2 dPosWinToRoom = PosWinToRm(pCam);
 
 	dPosWinToRoom.m_x = roundf(dPosWinToRoom.m_x);
 	dPosWinToRoom.m_y = roundf(dPosWinToRoom.m_y);
 
 	float rRgbNew = 1.0f;
-	FrVec2 posNew = posUL;
 	if (pRoomt->m_roomtk == ROOMTK_Translate)
 	{
 		f32 rSlide = Frog_GCurveS(pRoomt->m_r);
@@ -1656,6 +1662,14 @@ FROG_CALL void Frog_SetRoomTiles(FrRoom * pRoom, FrTileMap * pTmap, const char *
 			pRoom->m_mpICellTileEnv[iTileFlip] = *pTile;
 		}
 	}
+}
+
+FROG_CALL void Frog_SetRoomTile(FrRoom * pRoom, FrTileMap * pTmap, int xTile, int yTile, int ch)
+{
+	int iTile = xTile + (yTile * pRoom->m_dX);
+
+	FrScreenTile * pTile = &pTmap->m_mpChTile[ch];
+	pRoom->m_mpICellTileEnv[iTile] = *pTile;
 }
 
 FROG_CALL void Frog_SetTile(FrTileMap * pTmap, char ch, u32 wchOut, FrColor colFg,  FrColor colBg, s16 iSptile, u8 ftile)

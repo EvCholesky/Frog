@@ -171,8 +171,6 @@ void Frog_ClearScreen(FrPlatform * pPlat)
 {
     int dX, dY;
     glfwGetFramebufferSize(pPlat->m_pGlfwin, &dX, &dY);
-
-	glfwGetFramebufferSize(pPlat->m_pGlfwin, &dX, &dY);
     glViewport(0, 0, dX, dY);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);

@@ -45,7 +45,7 @@ typedef struct RoomDefinition_t // tag = rmdef
 	const char *		m_pChzName;
 	int					m_dX;
 	int					m_dY;
-	const char *		m_aiTile;
+	char *				m_aiTile;
 	RoomTransition		m_aRmtrans[6];
 } RoomDefinition;
 
@@ -182,7 +182,7 @@ typedef struct World_t // tag = maze
 	bool				m_fUpdateIsDirty;
 	GAMEMODE			m_gamemode;
 
-	Editor *			m_pEditor;
+	Editor *			m_pEdit;
 
 } World;
 
